@@ -28,8 +28,9 @@
 
 ## الرابط
 
-- صفحة أولياء الأمور: https://school-grades.khd07.workers.dev
-- لوحة المعلم: https://school-grades.khd07.workers.dev/admin
+- صفحة أولياء الأمور: https://tahsil.khdio.com
+- لوحة المعلم: https://tahsil.khdio.com/admin
+- الرابط البديل (يعمل أيضًا): https://school-grades.khd07.workers.dev
 
 ## الأمان باختصار
 

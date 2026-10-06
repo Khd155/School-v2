@@ -18,6 +18,11 @@
     }
   ],
   "browser": { "binding": "BROWSER" },
+  // Custom domain (Cloudflare creates the DNS record and certificate). The workers.dev URL stays enabled
+  // because it was already shared.
+  "workers_dev": true,
+  "preview_urls": false,
+  "routes": [{ "pattern": "tahsil.khdio.com", "custom_domain": true }],
   "observability": { "enabled": true }
   // Secrets (set with `wrangler secret put`): ADMIN_PASSWORD, SESSION_SECRET, HASH_PEPPER
 }
