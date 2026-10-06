@@ -1,11 +1,22 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { computeClassStats, normalizeHeader, parseRecitation, parseScore, parseWorkbook, readCell } from "@/lib/import/parse";
-import { formatNumber, formatScore } from "@/lib/format";
-import { normalizeAccessCode } from "@/lib/access-code-format";
+import ExcelJS from "exceljs";
+import { computeClassStats, normalizeHeader, parseGrid, parseRecitation, parseScore } from "@/shared/import/parse";
+import { extractGrid, readCell, validateGrid } from "@/shared/import/grid";
+import { formatNumber, formatScore } from "@/shared/format";
+import { normalizeAccessCode } from "@/shared/access-code-format";
 
 const fixture = (name: string) => readFileSync(path.join(__dirname, "..", "fixtures", name));
+
+/** Same path as production: browser extracts the grid, JSON crosses the wire, server validates and parses. */
+async function parseWorkbook(buffer: Buffer, classes: number[]) {
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(buffer as never);
+  const grid = validateGrid(JSON.parse(JSON.stringify(extractGrid(wb))));
+  if (!grid) throw new Error("invalid grid");
+  return parseGrid(grid, classes);
+}
 
 describe("parseWorkbook — valid file", async () => {
   const result = await parseWorkbook(fixture("valid.xlsx"), [4, 5, 6]);
@@ -87,6 +98,13 @@ describe("parseWorkbook — missing column", () => {
 
   it("rejects non-xlsx content", async () => {
     await expect(parseWorkbook(Buffer.from("not a zip"), [4])).rejects.toThrow();
+  });
+
+  it("rejects malformed grids from the client", () => {
+    expect(validateGrid([{ name: "x", rows: [[{ kind: "number", value: "1" }]] }])).toBeNull();
+    expect(validateGrid([{ name: "x", rows: [[{ kind: "script" }]] }])).toBeNull();
+    expect(validateGrid("nope")).toBeNull();
+    expect(validateGrid([{ name: "x", rows: [[{ kind: "text", value: "ok" }]] }])).toEqual([{ name: "x", rows: [[{ kind: "text", value: "ok" }]] }]);
   });
 });
 

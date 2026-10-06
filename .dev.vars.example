@@ -1,0 +1,3 @@
+ADMIN_PASSWORD=change-me-at-least-12
+SESSION_SECRET=replace-with-openssl-rand-base64-48
+HASH_PEPPER=replace-with-openssl-rand-base64-48

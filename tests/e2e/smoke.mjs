@@ -1,25 +1,30 @@
-// End-to-end smoke test against a running app with a disposable local database.
-// Usage: BASE_URL=http://localhost:3000 DATABASE_URL=postgres://...localhost... ADMIN_PASSWORD=... \
-//        CHROMIUM_PATH=/path/to/chrome node tests/e2e/smoke.mjs
+// End-to-end smoke test against `wrangler dev` with its LOCAL D1 database (it is wiped first).
+// Usage: BASE_URL=http://127.0.0.1:8787 ADMIN_PASSWORD=... CHROMIUM_PATH=/path/to/chrome \
+//        [SKIP_PDF=1] [SHOTS_DIR=...] node tests/e2e/smoke.mjs
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import postgres from "postgres";
 import { chromium } from "playwright-core";
 
-const BASE = process.env.BASE_URL ?? "http://localhost:3000";
-const DB = process.env.DATABASE_URL ?? "";
+const BASE = process.env.BASE_URL ?? "http://127.0.0.1:8787";
 const PASSWORD = process.env.ADMIN_PASSWORD ?? "";
 const SHOTS = process.env.SHOTS_DIR;
 const fixtures = path.join(process.cwd(), "tests", "fixtures");
 
-if (!/localhost|127\.0\.0\.1/.test(DB)) throw new Error("Refusing to reset a non-local database");
+if (!/^http:\/\/(localhost|127\.0\.0\.1)/.test(BASE)) throw new Error("Refusing to run against a non-local server");
 
-const sql = postgres(DB, { max: 1, onnotice: () => {} });
-await sql`truncate students, class_stats, datasets, import_drafts, access_codes, admin_credentials, admin_sessions, rate_limits, settings_log, logos restart identity cascade`;
-// TRUNCATE ... CASCADE also empties app_state (it references datasets).
-await sql`insert into app_state (id) values (1) on conflict (id) do update set active_dataset_id = null, data_updated_at = null`;
-await sql`update app_settings set school_name = default, education_office = '', academic_year = '', term = '', subject = default, grade = default, enabled_classes = default, teacher_name = '', footer_text = ''`;
+/** Runs SQL on the local D1 database (never --remote). */
+function sql(query) {
+  const out = execFileSync("npx", ["wrangler", "d1", "execute", "school-grades", "--local", "--json", "--command", query], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  return JSON.parse(out.slice(out.indexOf("[")))[0].results;
+}
+
+sql(`DELETE FROM students; DELETE FROM class_stats; UPDATE app_state SET active_dataset_id = NULL, data_updated_at = NULL; DELETE FROM datasets;
+     DELETE FROM import_drafts; DELETE FROM access_codes; DELETE FROM admin_credentials; DELETE FROM admin_sessions; DELETE FROM rate_limits;
+     DELETE FROM settings_log; DELETE FROM logos;
+     UPDATE app_settings SET school_name = 'مدرسة عبدالرحمن بن أبي بكر الابتدائية', education_office = '', academic_year = '', term = '',
+       subject = 'الدراسات الإسلامية', grade = 'السادس', enabled_classes = '[4,5,6]', teacher_name = '', footer_text = '';`);
 
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH });
 const shot = async (page, name) => {
@@ -49,8 +54,8 @@ try {
   await admin.click("button[type=submit]");
   await admin.waitForURL(`${BASE}/admin`);
   step("teacher login rejects a wrong password and accepts the right one");
-  const [cred] = await sql`select password_hash from admin_credentials`;
-  assert.match(cred.password_hash, /^scrypt\$/, "password stored hashed");
+  const [cred] = sql("SELECT password_hash FROM admin_credentials");
+  assert.match(cred.password_hash, /^pbkdf2\$/, "password stored hashed");
 
   /* ---------- API protection ---------- */
   const anon = await fetch(`${BASE}/api/admin/codes`, { method: "POST", headers: { origin: BASE, "content-type": "application/json" }, body: '{"mode":"all"}' });
@@ -79,8 +84,8 @@ try {
   await shot(admin, "admin-import-preview");
   await admin.click("text=اعتماد البيانات");
   await admin.click("dialog >> text=اعتماد ونشر");
-  await admin.getByText(/اعتُمدت بيانات 24 طالبًا/).waitFor();
-  const [state1] = await sql`select data_updated_at, active_dataset_id from app_state`;
+  await admin.getByText("اعتُمدت البيانات الجديدة وأصبحت منشورة لأولياء الأمور.").waitFor();
+  const [state1] = sql("SELECT data_updated_at, active_dataset_id FROM app_state");
   assert.ok(state1.data_updated_at);
   await shot(admin, "admin-data");
   step("valid workbook previews with warnings and commits");
@@ -93,8 +98,8 @@ try {
   const email = (await firstRow.locator("td").nth(2).innerText()).trim();
   const code = (await firstRow.locator("td").nth(3).innerText()).replace(/\s/g, "");
   assert.match(code, /^\d{8}$/);
-  const [row] = await sql`select code_hash from access_codes where email = ${email}`;
-  assert.ok(row.code_hash.startsWith("scrypt$") && !row.code_hash.includes(code), "code stored hashed");
+  const [row] = sql(`SELECT code_hash FROM access_codes WHERE email = '${email}'`);
+  assert.ok(/^[0-9a-f]{64}$/.test(row.code_hash) && !row.code_hash.includes(code), "code stored hashed");
   await shot(admin, "admin-codes");
   step(`codes issued once and stored hashed (${email})`);
 
@@ -110,12 +115,12 @@ try {
   await fileInputs.nth(1).setInputFiles(path.join(fixtures, "logo-unsafe.svg"));
   await admin.click("text=حفظ التعديلات");
   await admin.getByText("حُفظت التعديلات").waitFor();
-  const [svg] = await sql`select data from logos where kind = 'school'`;
-  const svgText = Buffer.from(svg.data).toString("utf8");
+  const [svg] = sql("SELECT CAST(data AS TEXT) AS data FROM logos WHERE kind = 'school'");
+  const svgText = svg.data;
   assert.ok(!/script|onload|javascript:|foreignObject|evil\.example/i.test(svgText), `SVG sanitised: ${svgText}`);
   assert.ok(svgText.includes("<rect"), "SVG keeps safe shapes");
-  const [state2] = await sql`select data_updated_at from app_state`;
-  assert.equal(state2.data_updated_at.getTime(), state1.data_updated_at.getTime(), "settings do not touch data_updated_at");
+  const [state2] = sql("SELECT data_updated_at FROM app_state");
+  assert.equal(state2.data_updated_at, state1.data_updated_at, "settings do not touch data_updated_at");
   await admin.getByText(/تعديل: .*إدارة التعليم/).waitFor();
   await shot(admin, "admin-school");
   step("school info saved, SVG sanitised, last-data-update unchanged, change logged");
@@ -162,7 +167,7 @@ try {
   for (const label of ["الواجبات", "المشاركة والتفاعل", "المهام الأدائية", "مجموع أعمال الفصل", "القرآن الكريم", "الاختبارات", "مجموع القرآن والاختبارات", "تسميع سورة القلم", "تسميع الأحاديث — المهام الأدائية", "إدارة تعليم تجريبية", "معلم تجريبي", "نص تذييل تجريبي."]) {
     assert.ok(text.includes(label), `report contains ${label}`);
   }
-  const [stats] = await sql`select cs.average, cs.highest from class_stats cs join app_state st on st.active_dataset_id = cs.dataset_id where cs.class_no = 4`;
+  const [stats] = sql("SELECT cs.average, cs.highest FROM class_stats cs JOIN app_state st ON st.active_dataset_id = cs.dataset_id WHERE cs.class_no = 4");
   const avgText = await parent.locator(".summary-stats dd").first().innerText();
   assert.equal(avgText, String(Math.round(Number(stats.average) * 100) / 100));
   assert.equal(await parent.locator(".summary-stats dd").nth(1).innerText(), String(Number(stats.highest)));
@@ -188,7 +193,8 @@ try {
   // No horizontal overflow on mobile.
   assert.equal(await parent.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, "no overflow at 375px");
 
-  // PDF download.
+  // PDF download (Browser Rendering is only available when deployed or with remote bindings).
+  if (!process.env.SKIP_PDF) {
   const pdfRes = await parent.request.get(`${BASE}/api/report/pdf`);
   assert.equal(pdfRes.status(), 200);
   assert.equal(pdfRes.headers()["content-type"], "application/pdf");
@@ -196,6 +202,7 @@ try {
   assert.ok(pdf.subarray(0, 5).toString() === "%PDF-" && pdf.length > 20_000, `pdf size ${pdf.length}`);
   if (SHOTS) await (await import("node:fs/promises")).writeFile(path.join(SHOTS, "report.pdf"), pdf);
   step(`PDF generated (${Math.round(pdf.length / 1024)} KB)`);
+  }
 
   // Print stylesheet hides toolbar.
   await parent.emulateMedia({ media: "print" });
@@ -245,11 +252,11 @@ try {
   await admin.getByText("الملف صالح للاعتماد مع تنبيهات").waitFor();
   await admin.click("text=اعتماد البيانات");
   await admin.click("dialog >> text=اعتماد ونشر");
-  await admin.getByText(/اعتُمدت بيانات/).waitFor();
+  await admin.getByText("اعتُمدت البيانات الجديدة وأصبحت منشورة لأولياء الأمور.").waitFor();
   await admin.getByRole("button", { name: "استرجاع" }).first().click();
   await admin.click("dialog >> text=استرجاع ونشر");
-  await admin.getByText(/استُرجعت نسخة/).waitFor();
-  const [state3] = await sql`select active_dataset_id from app_state`;
+  await admin.getByText("استُرجعت النسخة المختارة وأصبحت منشورة.").waitFor();
+  const [state3] = sql("SELECT active_dataset_id FROM app_state");
   assert.equal(Number(state3.active_dataset_id), Number(state1.active_dataset_id));
   step("second import creates a version; restore switches back");
 
@@ -262,5 +269,4 @@ try {
   console.log("\nAll smoke checks passed.");
 } finally {
   await browser.close();
-  await sql.end();
 }

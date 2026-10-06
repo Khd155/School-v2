@@ -1,0 +1,23 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "school-grades",
+  "main": "src/worker.tsx",
+  "compatibility_date": "2026-09-01",
+  // Required by @cloudflare/puppeteer (Browser Rendering client).
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "./public",
+    "not_found_handling": "none"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "school-grades",
+      "database_id": "9ee3ac0a-9a85-44cd-bdaa-26b4010aebc2",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "browser": { "binding": "BROWSER" },
+  "observability": { "enabled": true }
+  // Secrets (set with `wrangler secret put`): ADMIN_PASSWORD, SESSION_SECRET, HASH_PEPPER
+}

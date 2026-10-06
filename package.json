@@ -3,36 +3,26 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "db:migrate": "node scripts/migrate.mjs"
+    "build": "node scripts/build-client.mjs",
+    "dev": "npm run build && wrangler dev",
+    "deploy": "npm run build && wrangler deploy",
+    "db:migrate:local": "wrangler d1 migrations apply school-grades --local",
+    "db:migrate": "wrangler d1 migrations apply school-grades --remote",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.client.json --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
-    "@fontsource/ibm-plex-sans-arabic": "^5.3.0",
-    "@sparticuz/chromium": "^153.0.0",
-    "dompurify": "^3.4.16",
+    "@cloudflare/puppeteer": "^1.4.0",
     "exceljs": "^4.4.0",
-    "jsdom": "^29.1.1",
-    "next": "^15.5.27",
-    "postgres": "^3.4.9",
-    "puppeteer-core": "^25.12.0",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0",
-    "server-only": "^0.0.1"
+    "hono": "^4.13.13"
   },
   "devDependencies": {
-    "@types/jsdom": "^30.0.0",
+    "@cloudflare/workers-types": "^5.20261006.1",
     "@types/node": "^26.6.4",
-    "@types/react": "^19.3.0",
-    "@types/react-dom": "^19.3.0",
-    "eslint": "^9.39.5",
-    "eslint-config-next": "^15.5.27",
+    "esbuild": "^0.28.2",
     "playwright-core": "^1.63.0",
     "typescript": "^6.0.3",
-    "vitest": "^5.0.3"
+    "vitest": "^5.0.3",
+    "wrangler": "^4.147.0"
   }
 }

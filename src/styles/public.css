@@ -68,3 +68,6 @@
   .public-main { padding: 0; min-height: 0; }
   .report-page-main { padding-top: 0; }
 }
+
+.report-message { flex-basis: 100%; }
+.report-message:empty { display: none; }

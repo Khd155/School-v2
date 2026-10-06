@@ -1,10 +1,6 @@
 node_modules
-.next
-out
-.env
-.env*.local
+.wrangler
+.dev.vars
+public/assets
 *.tsbuildinfo
-next-env.d.ts
-.vercel
 /test-results
-/tmp

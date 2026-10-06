@@ -58,3 +58,6 @@ a:hover { color: var(--color-action-hover); }
   border-radius: var(--radius-sm);
 }
 .skip-link:focus { top: var(--space-4); color: var(--white); }
+
+/* The hidden attribute always wins over component display rules. */
+[hidden] { display: none !important; }
