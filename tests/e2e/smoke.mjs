@@ -24,7 +24,7 @@ sql(`DELETE FROM students; DELETE FROM class_stats; UPDATE app_state SET active_
      DELETE FROM import_drafts; DELETE FROM access_codes; DELETE FROM admin_credentials; DELETE FROM admin_sessions; DELETE FROM rate_limits;
      DELETE FROM settings_log; DELETE FROM logos;
      UPDATE app_settings SET school_name = 'مدرسة عبدالرحمن بن أبي بكر الابتدائية', education_office = '', academic_year = '', term = '',
-       subject = 'الدراسات الإسلامية', grade = 'السادس', enabled_classes = '[4,5,6]', teacher_name = '', footer_text = '';`);
+       subject = 'الدراسات الإسلامية', grade = 'السادس', enabled_classes = '[4,5,6]', teacher_name = '', footer_text = '', require_access_code = 1;`);
 
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH });
 const shot = async (page, name) => {
@@ -133,8 +133,9 @@ try {
 
   /* ---------- Parent lookup ---------- */
   await parent.goto(BASE);
-  await parent.locator(".masthead-logos img").first().waitFor();
-  assert.equal(await parent.locator(".masthead-logos img").count(), 2);
+  await parent.locator(".site-header-logos img").first().waitFor();
+  assert.equal(await parent.locator(".site-header-logos img").count(), 2);
+  assert.ok(!(await parent.locator(".lookup-facts").innerText()).includes("الفصول"), "classes are not listed on the lookup page");
   await parent.click("text=عرض التقرير");
   await parent.getByText("أدخل البريد المدرسي للطالب.").waitFor();
   await parent.fill("#email", "not-an-email");

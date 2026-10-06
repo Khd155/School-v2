@@ -1,30 +1,33 @@
 import { Alert } from "./Alert";
 import { Document } from "./Layout";
-import { Masthead } from "./Masthead";
-import { formatClassList, formatDateTimeRiyadh } from "../shared/format";
+import { SiteHeader } from "./SiteHeader";
+import { formatDateTimeRiyadh } from "../shared/format";
 import type { SchoolInfo } from "../shared/types";
 
 export function LookupPage({ school, published, dataUpdatedAt }: { school: SchoolInfo; published: boolean; dataUpdatedAt: string | null }) {
   return (
     <Document title="استعلام التحصيل الدراسي" scripts={published ? ["lookup"] : []}>
-      <main class="public-main" id="main">
+      <SiteHeader school={school} />
+      <main class="public-main lookup-main" id="main">
         <div class="lookup">
-          <Masthead school={school} />
+          <div class="lookup-hero">
+            <h1 id="lookup-title">استعلام التحصيل الدراسي</h1>
+            <p>أدخل البريد المدرسي للطالب لعرض تقرير تحصيله وطباعته.</p>
+          </div>
 
           <section class="panel lookup-panel" aria-labelledby="lookup-title">
-            <h1 class="lookup-title" id="lookup-title">
-              استعلام التحصيل الدراسي
-            </h1>
-            <p class="lookup-intro">
-              مادة <strong>{school.subject}</strong> لطلاب <strong>الصف {school.grade}</strong>
-              {school.enabledClasses.length > 0 && (
-                <>
-                  {" "}— {school.enabledClasses.length > 1 ? "الفصول" : "الفصل"} {formatClassList(school.enabledClasses)}
-                </>
-              )}
-              .
-            </p>
+            <dl class="lookup-facts">
+              <div>
+                <dt>المادة</dt>
+                <dd>{school.subject}</dd>
+              </div>
+              <div>
+                <dt>الصف</dt>
+                <dd>{school.grade}</dd>
+              </div>
+            </dl>
 
+            <div class="lookup-body">
             {published ? (
               <form class="lookup-form" id="lookup-form" method="post" action="/api/lookup" novalidate>
                 <div class="field">
@@ -85,6 +88,7 @@ export function LookupPage({ school, published, dataUpdatedAt }: { school: Schoo
                 </Alert>
               </div>
             )}
+            </div>
           </section>
 
           {published && dataUpdatedAt && (
@@ -97,6 +101,13 @@ export function LookupPage({ school, published, dataUpdatedAt }: { school: Schoo
           )}
         </div>
       </main>
+      <footer class="site-footer">
+        <p>
+          {school.schoolName}
+          {school.academicYear && ` · العام الدراسي ${school.academicYear}`}
+        </p>
+        {school.teacherName && <p>للاستفسار عن الدرجات: {school.teacherName}، معلم المادة.</p>}
+      </footer>
     </Document>
   );
 }

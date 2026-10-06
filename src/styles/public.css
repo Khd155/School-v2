@@ -71,3 +71,68 @@
 
 .report-message { flex-basis: 100%; }
 .report-message:empty { display: none; }
+
+/* ---------- Site header (public lookup) ---------- */
+.site-header {
+  background: var(--color-surface);
+  border-top: 3px solid var(--color-action);
+  border-bottom: 1px solid var(--color-border);
+}
+.site-header-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  max-width: 960px;
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-4);
+  text-align: center;
+}
+.site-header-logos { display: flex; align-items: center; gap: var(--space-5); }
+.site-header-logos img { height: 56px; width: auto; max-width: 140px; object-fit: contain; }
+.site-header-school { font-size: var(--text-lg); font-weight: var(--weight-semibold); color: var(--color-heading); line-height: var(--leading-tight); }
+.site-header-office { margin-top: 2px; font-size: var(--text-sm); color: var(--color-text-muted); }
+
+/* ---------- Lookup page structure ---------- */
+body:has(.lookup-main) { display: flex; flex-direction: column; }
+.lookup-main { flex: 1; min-height: 0; padding-top: var(--space-8); }
+
+.lookup-hero { text-align: center; }
+.lookup-hero h1 { font-size: var(--text-2xl); }
+.lookup-hero p { margin-top: var(--space-2); color: var(--color-text-muted); }
+
+.lookup .lookup-panel { margin-top: var(--space-6); padding: 0; overflow: hidden; }
+.lookup-facts {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  background: var(--gray-50);
+  border-bottom: 1px solid var(--color-border);
+}
+.lookup-facts > div { padding: var(--space-3) var(--space-4); text-align: center; }
+.lookup-facts > div + div { border-inline-start: 1px solid var(--color-border); }
+.lookup-facts dt { font-size: var(--text-xs); color: var(--color-text-muted); }
+.lookup-facts dd { margin-top: 2px; font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--color-heading); }
+.lookup-body { padding: var(--space-6) var(--space-5); }
+.lookup-body .lookup-form { margin-top: 0; }
+.lookup-body .lookup-empty { margin-top: 0; }
+
+.site-footer {
+  padding: var(--space-5) var(--space-4) var(--space-6);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+  text-align: center;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+.site-footer p + p { margin-top: var(--space-1); }
+
+@media (min-width: 640px) {
+  .site-header-inner { flex-direction: row; justify-content: flex-start; gap: var(--space-5); text-align: start; padding-block: var(--space-4); }
+  .site-header.has-logos .site-header-text { padding-inline-start: var(--space-5); border-inline-start: 1px solid var(--color-border); }
+  .site-header-logos img { height: 60px; }
+  .site-header-school { font-size: var(--text-xl); }
+  .lookup-main { padding-top: var(--space-12); }
+  .lookup-hero h1 { font-size: var(--text-3xl); }
+  .lookup-body { padding: var(--space-8); }
+}
