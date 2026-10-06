@@ -229,3 +229,10 @@
 @media (min-width: 640px) {
   .admin-section { padding: var(--space-6); }
 }
+
+/* Search log */
+.outcome { font-weight: var(--weight-medium); }
+.outcome-ok { color: var(--success-text); }
+.outcome-fail { color: var(--danger-text); }
+.outcome-warn { color: var(--warning-text); }
+.figure-of { font-size: var(--text-sm); font-weight: var(--weight-regular); color: var(--color-text-muted); }

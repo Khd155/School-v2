@@ -19,6 +19,7 @@ import {
 import { safeEqual, sha256Hex } from "./server/crypto";
 import { assertSecrets, type AppEnv } from "./server/env";
 import { validateLogo } from "./server/images";
+import { findStudentLabel, listLookups, LOOKUP_LOG_KEPT, lookupSummary, recordLookup, type LogFilter, type LookupOutcome } from "./server/lookup-log";
 import { renderReportPdf } from "./server/pdf";
 import { clearAttempts, consumeAttempt, LIMITS, pruneRateLimits } from "./server/rate-limit";
 import { getLogo, getSchoolInfo, getSchoolSettings, getSettingsLog, LOGO_KINDS, updateSchoolSettings, type LogoChange, type SchoolSettings } from "./server/school";
@@ -43,6 +44,7 @@ import { AdminLayout } from "./views/admin/AdminLayout";
 import { CodesContent } from "./views/admin/CodesPage";
 import { DataContent, ImportPreview } from "./views/admin/DataPage";
 import { LoginPage } from "./views/admin/LoginPage";
+import { LogContent, OUTCOME_LABELS } from "./views/admin/LogPage";
 import { SchoolContent } from "./views/admin/SchoolPage";
 
 const app = new Hono<AppEnv>();
@@ -131,32 +133,70 @@ app.post("/api/lookup", async (c) => {
   const email = typeof body?.email === "string" ? normalizeEmail(body.email) : "";
   if (!isValidEmail(email)) return jsonError(c, 400, "invalid_request");
 
+  /**
+   * Teacher's search log, written after the response (waitUntil) so it adds no
+   * latency. For failed attempts the student label is resolved there too, so the
+   * parent-facing response time does not depend on whether the e-mail exists.
+   */
+  const log = (outcome: LookupOutcome, student?: { name: string; classNo: number } | null) =>
+    c.executionCtx.waitUntil(
+      (async () => {
+        const label = student === undefined ? await findStudentLabel(c.env.DB, email) : null;
+        let finalOutcome = outcome;
+        // In code mode a 401 covers both cases for the parent; the teacher sees which one it was.
+        if (outcome === "wrong_code" && !label) finalOutcome = "email_not_found";
+        await recordLookup(c.env.DB, {
+          email,
+          outcome: finalOutcome,
+          studentName: student?.name ?? label?.name ?? null,
+          classNo: student?.classNo ?? label?.class_no ?? null,
+        });
+      })().catch((err) => console.error("lookup log failed", err)),
+    );
+
   const ipBlock = await consumeAttempt(c.env.DB, LIMITS.lookupIp, clientIp(c));
-  if (ipBlock) return jsonError(c, 429, "rate_limited", { retryAfterMinutes: ipBlock });
+  if (ipBlock) {
+    log("rate_limited");
+    return jsonError(c, 429, "rate_limited", { retryAfterMinutes: ipBlock });
+  }
 
   const settings = await getSchoolSettings(c.env.DB);
   if (!settings.requireAccessCode) {
     const report = await getStudentReport(c.env.DB, email);
-    if (!report) return jsonError(c, 404, "email_not_found");
+    if (!report) {
+      log("email_not_found", null);
+      return jsonError(c, 404, "email_not_found");
+    }
     await startReportSession(c, email, 0);
+    log("success", { name: report.student.name, classNo: report.student.classNo });
     return c.json({ ok: true });
   }
 
   const code = typeof body?.code === "string" ? normalizeAccessCode(body.code) : null;
   if (!code) return jsonError(c, 400, "invalid_request");
   const emailBlock = await consumeAttempt(c.env.DB, LIMITS.lookupEmail, email);
-  if (emailBlock) return jsonError(c, 429, "rate_limited", { retryAfterMinutes: emailBlock });
+  if (emailBlock) {
+    log("rate_limited");
+    return jsonError(c, 429, "rate_limited", { retryAfterMinutes: emailBlock });
+  }
 
   const version = await verifyAccessCode(c.env, email, code);
-  if (version === null) return jsonError(c, 401, "invalid_credentials");
+  if (version === null) {
+    log("wrong_code");
+    return jsonError(c, 401, "invalid_credentials");
+  }
 
   await clearAttempts(c.env.DB, LIMITS.lookupEmail, email);
   if (Math.random() < 0.02) c.executionCtx.waitUntil(pruneRateLimits(c.env.DB));
 
   // Identity is verified here, so it is safe to say there is no result.
   const report = await getStudentReport(c.env.DB, email);
-  if (!report) return jsonError(c, 404, "no_result");
+  if (!report) {
+    log("no_result", null);
+    return jsonError(c, 404, "no_result");
+  }
   await startReportSession(c, email, version);
+  log("success", { name: report.student.name, classNo: report.student.classNo });
   return c.json({ ok: true });
 });
 
@@ -249,6 +289,22 @@ app.get("/admin/school", (c) =>
   adminPage(c, "معلومات المدرسة", async (settings) => {
     const [info, log] = await Promise.all([getSchoolInfo(c.env.DB), getSettingsLog(c.env.DB)]);
     return <SchoolContent settings={settings} logos={info.logos} log={log} />;
+  }),
+);
+
+app.get("/admin/log", (c) =>
+  adminPage(c, "سجل البحث", async () => {
+    const outcomeParam = c.req.query("outcome") ?? "";
+    const filter: LogFilter = {
+      q: (c.req.query("q") ?? "").trim().slice(0, 100),
+      outcome: outcomeParam in OUTCOME_LABELS ? (outcomeParam as LookupOutcome) : "",
+      before: Number.isSafeInteger(Number(c.req.query("before"))) && Number(c.req.query("before")) > 0 ? Number(c.req.query("before")) : null,
+    };
+    const [{ entries, hasMore }, summary, roster] = await Promise.all([listLookups(c.env.DB, filter), lookupSummary(c.env.DB), getDataState(c.env.DB)]);
+    const totalStudents = roster.activeDatasetId
+      ? ((await c.env.DB.prepare("SELECT student_count FROM datasets WHERE id = ?").bind(roster.activeDatasetId).first<{ student_count: number }>())?.student_count ?? 0)
+      : 0;
+    return <LogContent entries={entries} hasMore={hasMore} filter={filter} summary={summary} totalStudents={totalStudents} keptRows={LOOKUP_LOG_KEPT} />;
   }),
 );
 

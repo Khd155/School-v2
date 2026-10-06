@@ -44,7 +44,7 @@ export function LookupPage({ school, published, dataUpdatedAt }: { school: Schoo
                     spellcheck={false}
                     dir="ltr"
                     class="input ltr"
-                    placeholder="name@school.edu.sa"
+                    placeholder="sXXXXXXXXX@mkhb.moe.gov.sa"
                     maxlength={254}
                   />
                   <p class="field-error" id="email-error" hidden></p>

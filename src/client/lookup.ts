@@ -25,7 +25,7 @@ form.addEventListener("submit", async (event) => {
 
   const e = normalizeEmail(email.value);
   const c = code ? normalizeAccessCode(code.value) : null;
-  const emailErr = !e ? "أدخل البريد المدرسي للطالب." : !isValidEmail(e) ? "صيغة البريد غير صحيحة. مثال: name@school.edu.sa" : null;
+  const emailErr = !e ? "أدخل البريد المدرسي للطالب." : !isValidEmail(e) ? "صيغة البريد غير صحيحة. مثال: sXXXXXXXXX@mkhb.moe.gov.sa" : null;
   const codeErr = !code ? null : !code.value.trim() ? "أدخل رمز الوصول." : !c ? "رمز الوصول مكوّن من 8 أرقام." : null;
   fieldError(email, emailErr);
   if (code) fieldError(code, codeErr);

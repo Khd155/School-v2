@@ -22,7 +22,7 @@ function sql(query) {
 
 sql(`DELETE FROM students; DELETE FROM class_stats; UPDATE app_state SET active_dataset_id = NULL, data_updated_at = NULL; DELETE FROM datasets;
      DELETE FROM import_drafts; DELETE FROM access_codes; DELETE FROM admin_credentials; DELETE FROM admin_sessions; DELETE FROM rate_limits;
-     DELETE FROM settings_log; DELETE FROM logos;
+     DELETE FROM settings_log; DELETE FROM logos; DELETE FROM lookup_log;
      UPDATE app_settings SET school_name = 'مدرسة عبدالرحمن بن أبي بكر الابتدائية', education_office = '', academic_year = '', term = '',
        subject = 'الدراسات الإسلامية', grade = 'السادس', enabled_classes = '[4,5,6]', teacher_name = '', footer_text = '', require_access_code = 1;`);
 
@@ -230,6 +230,21 @@ try {
   const body429 = await last.json();
   assert.ok(body429.retryAfterMinutes >= 1);
   step("per-email rate limit triggers after 5 attempts");
+
+  /* ---------- Search log ---------- */
+  await admin.goto(`${BASE}/admin/log`);
+  const logText = await admin.locator("table").innerText();
+  for (const label of ["عُرض التقرير", "رمز وصول خاطئ", "بريد غير موجود", "أُوقف لكثرة المحاولات"]) {
+    assert.ok(logText.includes(label), `log shows «${label}»`);
+  }
+  assert.ok(logText.includes(email) && logText.includes("nobody@test.school.example"), "log shows searched e-mails");
+  await admin.selectOption("#log-outcome", "success");
+  await admin.click("form[role=search] button[type=submit]");
+  await admin.waitForURL(/outcome=success/);
+  const outcomes = await admin.locator("tbody .outcome").allInnerTexts();
+  assert.ok(outcomes.length > 0 && outcomes.every((o) => o === "عُرض التقرير"), "outcome filter works");
+  await shot(admin, "admin-log");
+  step("search log records each outcome with the student, and filters by result");
 
   /* ---------- Code regeneration invalidates sessions ---------- */
   await parent.goto(BASE);
