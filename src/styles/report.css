@@ -1,0 +1,263 @@
+/*
+ * Student report. Shared by the web page, browser printing and the PDF
+ * renderer (which inlines this file), so keep it self-contained.
+ */
+.report {
+  width: 100%;
+  max-width: 820px;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+
+.report-heading { margin-top: var(--space-5); text-align: center; }
+.report-heading h1 { font-size: var(--text-2xl); }
+.report-subject { margin-top: var(--space-1); font-size: var(--text-lg); color: var(--color-heading); font-weight: var(--weight-medium); }
+.report-term { margin-top: var(--space-1); font-size: var(--text-sm); color: var(--color-text-muted); }
+
+/* Student facts */
+.report-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  margin-top: var(--space-6);
+  background: var(--color-border);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.fact {
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  break-inside: avoid;
+}
+.fact-wide { grid-column: span 2; }
+.fact dt { font-size: var(--text-xs); color: var(--color-text-muted); }
+.fact dd { margin-top: 2px; font-size: var(--text-md); font-weight: var(--weight-semibold); color: var(--color-heading); overflow-wrap: anywhere; }
+
+/* Final total vs class */
+.report-summary {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+  padding: var(--space-5);
+  background: var(--petrol-50);
+  border: 1px solid #cfe3e3;
+  border-radius: var(--radius-md);
+  break-inside: avoid;
+}
+.summary-final { display: grid; justify-items: center; gap: var(--space-1); text-align: center; }
+.summary-label { font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--petrol-700); }
+.summary-value {
+  font-size: var(--text-display);
+  font-weight: var(--weight-bold);
+  line-height: 1.1;
+  color: var(--navy-800);
+}
+.summary-value.is-empty { font-size: var(--text-xl); font-weight: var(--weight-medium); color: var(--color-text-muted); }
+.summary-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1px solid #cfe3e3;
+  padding-top: var(--space-4);
+}
+.summary-stats > div { text-align: center; padding: 0 var(--space-2); }
+.summary-stats > div + div { border-inline-start: 1px solid #cfe3e3; }
+.summary-stats dt { font-size: var(--text-xs); color: var(--color-text-muted); }
+.summary-stats dd { margin-top: 2px; font-size: var(--text-xl); font-weight: var(--weight-semibold); color: var(--color-heading); }
+
+/* Sections */
+.report-section { margin-top: var(--space-8); }
+.section-title {
+  margin-bottom: var(--space-3);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  color: var(--color-heading);
+  break-after: avoid;
+}
+
+/*
+ * Grade layout (fixed by spec, identical on every width and in print):
+ *   row 1: three cells — first cell on the right in RTL
+ *   row 2: class-work total, centred
+ *   row 3: two cells, centred
+ *   row 4: Quran + exams total, centred
+ * A 6-column grid keeps the centred rows aligned with the cells above.
+ */
+.grades { display: grid; gap: var(--space-3); }
+.grade-row {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--space-2);
+  break-inside: avoid;
+}
+.grade-row-3 > .grade-cell { grid-column: span 2; }
+.grade-row-2 > .grade-cell:first-child { grid-column: 2 / span 2; }
+.grade-row-2 > .grade-cell:last-child { grid-column: 4 / span 2; }
+.grade-row-total > .grade-cell { grid-column: 2 / span 4; }
+
+.grade-cell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  text-align: center;
+  break-inside: avoid;
+}
+.grade-label { font-size: var(--text-xs); line-height: 1.5; color: var(--color-text-muted); }
+.grade-value {
+  margin-top: auto;
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  line-height: 1.2;
+  color: var(--color-heading);
+}
+.grade-value.is-empty { font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--color-text-subtle); }
+.grade-cell.is-total { background: var(--gray-50); border-color: var(--color-border-strong); }
+.grade-cell.is-total .grade-label { color: var(--color-heading); font-weight: var(--weight-medium); }
+
+/* Recitation states — the whole cell is tinted and the state is also written. */
+.recitations {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.recitations-4,
+.recitations-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.recitation {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: 1px solid;
+  border-radius: var(--radius-md);
+  break-inside: avoid;
+}
+.recitation-label { font-size: var(--text-xs); line-height: 1.5; }
+.recitation-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+}
+.recitation-status svg { flex-shrink: 0; }
+.recitation.is-done { background: var(--success-bg); border-color: var(--success-border); color: var(--success-text); }
+.recitation.is-not-done { background: var(--danger-bg); border-color: var(--danger-border); color: var(--danger-text); }
+.recitation.is-empty { background: var(--neutral-bg); border-color: var(--neutral-border); color: var(--neutral-text); }
+.recitation.is-empty .recitation-status { font-weight: var(--weight-medium); font-size: var(--text-sm); }
+
+.recitation-score { margin-top: var(--space-3); font-size: var(--text-sm); color: var(--color-text-muted); }
+.recitation-score strong { color: var(--color-heading); font-weight: var(--weight-semibold); }
+
+.report-note {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  white-space: pre-line;
+  break-inside: avoid;
+}
+.report-note.is-empty { color: var(--color-text-subtle); }
+
+.report-footer {
+  margin-top: var(--space-8);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  break-inside: avoid;
+}
+.report-footer dl { display: grid; gap: var(--space-2); }
+.report-footer dl > div { display: flex; flex-wrap: wrap; gap: 0 var(--space-2); }
+.report-footer dd { color: var(--color-text); font-weight: var(--weight-medium); }
+.report-tz { margin-top: var(--space-2); }
+.report-footer-text { margin-top: var(--space-3); color: var(--color-text); white-space: pre-line; }
+
+@media (min-width: 640px) {
+  .report { padding: var(--space-10) var(--space-10); }
+  .report-facts { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .fact-wide:nth-child(n + 2) { grid-column: span 4; }
+  .report-summary { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); align-items: center; }
+  .summary-stats { border-top: 0; padding-top: 0; border-inline-start: 1px solid #cfe3e3; }
+  .grade-row { gap: var(--space-3); }
+  .grade-cell { padding: var(--space-4); }
+  .grade-label { font-size: var(--text-sm); }
+  .grade-value { font-size: var(--text-2xl); }
+  .recitations-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .report-footer dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* ---------- Print / PDF (A4) ---------- */
+@page { size: A4; margin: 12mm 12mm 14mm; }
+
+@media print {
+  html, body { background: var(--white) !important; }
+  body { font-size: 12px; line-height: 1.55; }
+  .no-print { display: none !important; }
+  .report {
+    max-width: none;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .masthead-logos { gap: var(--space-4); margin-bottom: var(--space-2); }
+  .masthead-logos img { height: 44px; }
+  .masthead-school { font-size: 16px; }
+  .masthead-office { margin-top: 0; font-size: 11.5px; }
+  .masthead-rule { margin-top: var(--space-2); }
+  .report-heading { margin-top: var(--space-2); }
+  .report-heading h1 { font-size: 18px; }
+  .report-subject { margin-top: 0; font-size: 14px; }
+  .report-term { margin-top: 0; font-size: 11.5px; }
+
+  /* Facts on one row: name | grade | class | teacher */
+  .report-facts { grid-template-columns: 2fr 1fr 1fr; margin-top: var(--space-3); }
+  .report-facts.has-teacher { grid-template-columns: 2fr 1fr 1fr 2fr; }
+  .fact-wide,
+  .fact-wide:nth-child(n + 2) { grid-column: span 1; }
+  .fact { padding: var(--space-1) var(--space-3); }
+  .fact dt { font-size: 10.5px; }
+  .fact dd { margin-top: 0; font-size: 12.5px; }
+
+  .report-summary {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+    align-items: center;
+    margin-top: var(--space-3);
+    padding: var(--space-2) var(--space-4);
+  }
+  .summary-stats { border-top: 0; padding-top: 0; border-inline-start: 1px solid #cfe3e3; }
+  .summary-label { font-size: 11.5px; }
+  .summary-value { font-size: 28px; }
+  .summary-stats dt { font-size: 10.5px; }
+  .summary-stats dd { margin-top: 0; font-size: 16px; }
+
+  .report-section { margin-top: var(--space-3); }
+  .section-title { margin-bottom: var(--space-2); font-size: 13px; }
+  .grades { gap: var(--space-2); }
+  .grade-row { gap: var(--space-2); }
+  .grade-cell { padding: var(--space-1) var(--space-3); gap: 0; }
+  .grade-label { font-size: 11px; }
+  .grade-value { font-size: 15px; }
+  .recitations-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .recitation { padding: var(--space-1) var(--space-3); gap: 0; }
+  .recitation-label { font-size: 10.5px; }
+  .recitation-status { font-size: 12.5px; }
+  .recitation-score { margin-top: var(--space-1); font-size: 11.5px; }
+  .report-note { padding: var(--space-2) var(--space-3); font-size: 12px; }
+  .report-footer { margin-top: var(--space-4); padding-top: var(--space-2); font-size: 10.5px; }
+  .report-footer dl { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-1); }
+  .report-tz { margin-top: var(--space-1); }
+  .report-footer-text { margin-top: var(--space-2); }
+}
