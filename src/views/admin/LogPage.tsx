@@ -1,6 +1,7 @@
 import { PageHead } from "./AdminLayout";
 import { formatDateTimeRiyadh } from "../../shared/format";
-import type { LogFilter, LookupLogEntry, LookupOutcome } from "../../server/lookup-log";
+import { DownloadIcon } from "../icons";
+import type { ClassCoverage, DailyActivity, LogFilter, LookupLogEntry, LookupOutcome } from "../../server/lookup-log";
 
 export const OUTCOME_LABELS: Record<LookupOutcome, string> = {
   success: "عُرض التقرير",
@@ -24,9 +25,11 @@ type Props = {
   summary: { day_total: number; day_success: number; day_failed: number; students_viewed: number } | null;
   totalStudents: number;
   keptRows: number;
+  coverage: ClassCoverage[];
+  daily: DailyActivity[];
 };
 
-export function LogContent({ entries, hasMore, filter, summary, totalStudents, keptRows }: Props) {
+export function LogContent({ entries, hasMore, filter, summary, totalStudents, keptRows, coverage, daily }: Props) {
   const nextParams = new URLSearchParams();
   if (filter.q) nextParams.set("q", filter.q);
   if (filter.outcome) nextParams.set("outcome", filter.outcome);
@@ -69,9 +72,82 @@ export function LogContent({ entries, hasMore, filter, summary, totalStudents, k
         </dl>
       </section>
 
+      <section class="panel admin-section" aria-labelledby="stats-title">
+        <div class="admin-section-head">
+          <div>
+            <h2 id="stats-title">إحصائيات</h2>
+            <p>«اطّلعوا» تعني أن تقرير الطالب فُتح مرة واحدة على الأقل.</p>
+          </div>
+        </div>
+        <div class="stats-grid">
+          <div>
+            <h3 class="issues-head" style="margin-bottom: var(--space-2)">الاطّلاع حسب الفصل</h3>
+            {coverage.length === 0 ? (
+              <p class="hint">لا توجد بيانات طلاب منشورة.</p>
+            ) : (
+              <div class="table-wrap">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>الفصل</th>
+                      <th class="num">الطلاب</th>
+                      <th class="num">اطّلعوا</th>
+                      <th class="num">لم يطّلعوا</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {coverage.map((r) => (
+                      <tr>
+                        <td>الفصل {r.classNo}</td>
+                        <td class="num">{r.total}</td>
+                        <td class="num">{r.viewed}</td>
+                        <td class="num">{r.total - r.viewed}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+          <div>
+            <h3 class="issues-head" style="margin-bottom: var(--space-2)">النشاط اليومي (آخر 14 يومًا)</h3>
+            {daily.length === 0 ? (
+              <p class="hint">لا توجد محاولات في هذه الفترة.</p>
+            ) : (
+              <div class="table-wrap">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>اليوم</th>
+                      <th class="num">المحاولات</th>
+                      <th class="num">ناجحة</th>
+                      <th class="num">غير ناجحة</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {daily.map((d) => (
+                      <tr>
+                        <td class="nowrap">{formatDay(d.day)}</td>
+                        <td class="num">{d.total}</td>
+                        <td class="num">{d.success}</td>
+                        <td class="num">{d.failed}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
       <section class="panel admin-section" aria-labelledby="log-title">
         <div class="admin-section-head">
           <h2 id="log-title">المحاولات</h2>
+          <a class="btn btn-secondary btn-sm" href="/admin/log.csv" download>
+            <DownloadIcon />
+            تنزيل CSV
+          </a>
         </div>
         <form class="filters" method="get" action="/admin/log" role="search">
           <label class="visually-hidden" for="log-q">
@@ -141,4 +217,10 @@ export function LogContent({ entries, hasMore, filter, summary, totalStudents, k
       </section>
     </>
   );
+}
+
+const dayFormat = new Intl.DateTimeFormat("ar-SA-u-ca-gregory-nu-latn", { timeZone: "UTC", weekday: "long", day: "numeric", month: "long" });
+/** "2026-10-06" (already a Saudi calendar day) → «الثلاثاء 6 أكتوبر». */
+function formatDay(day: string): string {
+  return dayFormat.format(new Date(`${day}T00:00:00Z`));
 }

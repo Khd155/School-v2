@@ -233,7 +233,7 @@ try {
 
   /* ---------- Search log ---------- */
   await admin.goto(`${BASE}/admin/log`);
-  const logText = await admin.locator("table").innerText();
+  const logText = await admin.locator("section[aria-labelledby=log-title] table").innerText();
   for (const label of ["عُرض التقرير", "رمز وصول خاطئ", "بريد غير موجود", "أُوقف لكثرة المحاولات"]) {
     assert.ok(logText.includes(label), `log shows «${label}»`);
   }
@@ -243,6 +243,18 @@ try {
   await admin.waitForURL(/outcome=success/);
   const outcomes = await admin.locator("tbody .outcome").allInnerTexts();
   assert.ok(outcomes.length > 0 && outcomes.every((o) => o === "عُرض التقرير"), "outcome filter works");
+  await admin.goto(`${BASE}/admin/log`);
+  const statsText = await admin.locator(".stats-grid").innerText();
+  assert.ok(/الفصل 4\s+8\s+1\s+7/.test(statsText), "class 4: 8 students, 1 viewed, 7 not yet");
+  assert.ok(statsText.includes("النشاط اليومي"), "daily activity shown");
+  // Fetched from inside the page so the browser sends its Secure/SameSite cookie, like a real click.
+  const { csv, type } = await admin.evaluate(async () => {
+    const r = await fetch("/admin/log.csv");
+    return { type: r.headers.get("content-type"), csv: new TextDecoder("utf-8", { ignoreBOM: true }).decode(await r.arrayBuffer()) };
+  });
+  assert.equal(type, "text/csv; charset=utf-8");
+  assert.ok(csv.startsWith("\uFEFF") && csv.includes("عُرض التقرير") && csv.includes("رمز وصول خاطئ"), "CSV export");
+  assert.equal((await fetch(`${BASE}/admin/log.csv`, { redirect: "manual" })).status, 303, "CSV needs a session");
   await shot(admin, "admin-log");
   step("search log records each outcome with the student, and filters by result");
 

@@ -1,6 +1,7 @@
 import { Hono, type Context } from "hono";
 import type { Child } from "hono/jsx";
 import { isValidEmail, normalizeAccessCode, normalizeEmail } from "./shared/access-code-format";
+import { formatDateTimeRiyadh } from "./shared/format";
 import { validateGrid } from "./shared/import/grid";
 import { ImportFileError, parseGrid } from "./shared/import/parse";
 import {
@@ -19,7 +20,18 @@ import {
 import { safeEqual, sha256Hex } from "./server/crypto";
 import { assertSecrets, type AppEnv } from "./server/env";
 import { validateLogo } from "./server/images";
-import { findStudentLabel, listLookups, LOOKUP_LOG_KEPT, lookupSummary, recordLookup, type LogFilter, type LookupOutcome } from "./server/lookup-log";
+import {
+  allLookups,
+  coverageByClass,
+  dailyActivity,
+  findStudentLabel,
+  listLookups,
+  LOOKUP_LOG_KEPT,
+  lookupSummary,
+  recordLookup,
+  type LogFilter,
+  type LookupOutcome,
+} from "./server/lookup-log";
 import { renderReportPdf } from "./server/pdf";
 import { clearAttempts, consumeAttempt, LIMITS, pruneRateLimits } from "./server/rate-limit";
 import { getLogo, getSchoolInfo, getSchoolSettings, getSettingsLog, LOGO_KINDS, updateSchoolSettings, type LogoChange, type SchoolSettings } from "./server/school";
@@ -304,9 +316,41 @@ app.get("/admin/log", (c) =>
     const totalStudents = roster.activeDatasetId
       ? ((await c.env.DB.prepare("SELECT student_count FROM datasets WHERE id = ?").bind(roster.activeDatasetId).first<{ student_count: number }>())?.student_count ?? 0)
       : 0;
-    return <LogContent entries={entries} hasMore={hasMore} filter={filter} summary={summary} totalStudents={totalStudents} keptRows={LOOKUP_LOG_KEPT} />;
+    const [coverage, daily] = await Promise.all([coverageByClass(c.env.DB), dailyActivity(c.env.DB)]);
+    return (
+      <LogContent
+        entries={entries}
+        hasMore={hasMore}
+        filter={filter}
+        summary={summary}
+        totalStudents={totalStudents}
+        keptRows={LOOKUP_LOG_KEPT}
+        coverage={coverage}
+        daily={daily}
+      />
+    );
   }),
 );
+
+/** Full search log as CSV (UTF-8 with BOM so Excel shows Arabic). Read-only, so no CSRF token needed. */
+app.get("/admin/log.csv", async (c) => {
+  if (!(await getAdminSession(c))) return c.redirect("/admin/login", 303);
+  const rows = await allLookups(c.env.DB);
+  const cell = (v: string | number | null) => {
+    const text = v === null ? "" : String(v);
+    const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text; // spreadsheet formula injection
+    return `"${safe.replace(/"/g, '""')}"`;
+  };
+  const lines = [
+    ["الوقت (بتوقيت السعودية)", "البريد المدخل", "الطالب", "الفصل", "النتيجة"].map(cell).join(","),
+    ...rows.map((r) => [formatDateTimeRiyadh(r.createdAt), r.email, r.studentName, r.classNo, OUTCOME_LABELS[r.outcome]].map(cell).join(",")),
+  ];
+  const date = new Date(Date.now() + 3 * 3_600_000).toISOString().slice(0, 10);
+  return c.body("\uFEFF" + lines.join("\r\n"), 200, {
+    "Content-Type": "text/csv; charset=utf-8",
+    "Content-Disposition": `attachment; filename="search-log.csv"; filename*=UTF-8''${encodeURIComponent(`سجل البحث - ${date}.csv`)}`,
+  });
+});
 
 app.get("/admin/account", (c) => adminPage(c, "الحساب", () => <AccountContent />));
 
