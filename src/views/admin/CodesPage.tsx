@@ -1,11 +1,12 @@
+import { Alert } from "../Alert";
 import { DownloadIcon, PrintIcon } from "../icons";
 import { PageHead } from "./AdminLayout";
 import { formatDateRiyadh } from "../../shared/format";
 import type { CodeRosterEntry } from "../../server/students";
 
-type Props = { roster: CodeRosterEntry[]; siteUrl: string; schoolName: string; subject: string; grade: string };
+type Props = { roster: CodeRosterEntry[]; siteUrl: string; schoolName: string; subject: string; grade: string; codesRequired: boolean };
 
-export function CodesContent({ roster, siteUrl, schoolName, subject, grade }: Props) {
+export function CodesContent({ roster, siteUrl, schoolName, subject, grade, codesRequired }: Props) {
   const missing = roster.filter((s) => !s.codeGeneratedAt).length;
   const classes = [...new Set(roster.map((s) => s.classNo))].sort((a, b) => a - b);
   return (
@@ -14,6 +15,15 @@ export function CodesContent({ roster, siteUrl, schoolName, subject, grade }: Pr
         لكل طالب رمز من 8 أرقام يدخله ولي الأمر مع البريد المدرسي. تُحفظ الرموز مشفّرة ولا يمكن عرضها لاحقًا، لذلك تظهر مرة واحدة فقط عند توليدها:
         نزّلها أو اطبعها فورًا.
       </PageHead>
+
+      {!codesRequired && (
+        <div style="margin-bottom: var(--space-5)">
+          <Alert tone="warning" title="رمز الوصول غير مطلوب حاليًا">
+            يستعلم أولياء الأمور بالبريد المدرسي وحده، فمن يعرف بريد طالب يستطيع رؤية تقريره. يمكنك تفعيل الرمز من صفحة «معلومات المدرسة»، وتعمل
+            الرموز المولّدة هنا فور التفعيل.
+          </Alert>
+        </div>
+      )}
 
       <section class="panel admin-section" aria-labelledby="codes-summary" id="codes-root" data-site-url={siteUrl} data-school={schoolName} data-subject={subject} data-grade={grade}>
         <div class="admin-section-head">

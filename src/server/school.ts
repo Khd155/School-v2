@@ -15,6 +15,7 @@ type SettingsRow = {
   enabled_classes: string;
   teacher_name: string;
   footer_text: string;
+  require_access_code: number;
 };
 
 function fromRow(row: SettingsRow): SchoolSettings {
@@ -28,6 +29,7 @@ function fromRow(row: SettingsRow): SchoolSettings {
     enabledClasses: (JSON.parse(row.enabled_classes) as number[]).slice().sort((a, b) => a - b),
     teacherName: row.teacher_name,
     footerText: row.footer_text,
+    requireAccessCode: row.require_access_code === 1,
   };
 }
 
@@ -72,6 +74,7 @@ const FIELD_LABELS: Record<keyof SchoolSettings, string> = {
   enabledClasses: "الفصول المفعّلة",
   teacherName: "اسم المعلم",
   footerText: "نص التذييل",
+  requireAccessCode: "طلب رمز الوصول",
 };
 
 export type LogoChange =
@@ -99,7 +102,7 @@ export async function updateSchoolSettings(db: D1Database, next: SchoolSettings,
       db
         .prepare(
           `UPDATE app_settings SET school_name = ?, education_office = ?, academic_year = ?, term = ?, subject = ?,
-             grade = ?, enabled_classes = ?, teacher_name = ?, footer_text = ?, updated_at = ? WHERE id = 1`,
+             grade = ?, enabled_classes = ?, teacher_name = ?, footer_text = ?, require_access_code = ?, updated_at = ? WHERE id = 1`,
         )
         .bind(
           next.schoolName,
@@ -111,6 +114,7 @@ export async function updateSchoolSettings(db: D1Database, next: SchoolSettings,
           JSON.stringify(next.enabledClasses),
           next.teacherName,
           next.footerText,
+          next.requireAccessCode ? 1 : 0,
           now,
         ),
     );

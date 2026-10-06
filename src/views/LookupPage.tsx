@@ -47,6 +47,7 @@ export function LookupPage({ school, published, dataUpdatedAt }: { school: Schoo
                   <p class="field-error" id="email-error" hidden></p>
                 </div>
 
+                {school.requireAccessCode && (
                 <div class="field">
                   <label class="label" for="code">
                     رمز الوصول
@@ -68,6 +69,7 @@ export function LookupPage({ school, published, dataUpdatedAt }: { school: Schoo
                   </p>
                   <p class="field-error" id="code-error" hidden></p>
                 </div>
+                )}
 
                 <div id="form-message" aria-live="polite"></div>
 
@@ -90,7 +92,7 @@ export function LookupPage({ school, published, dataUpdatedAt }: { school: Schoo
               <p>
                 آخر تحديث للبيانات: <strong>{formatDateTimeRiyadh(dataUpdatedAt)}</strong>
               </p>
-              <p class="lookup-privacy">لا تُعرض نتيجة أي طالب إلا بالبريد المدرسي ورمز الوصول معًا.</p>
+              {school.requireAccessCode && <p class="lookup-privacy">لا تُعرض نتيجة أي طالب إلا بالبريد المدرسي ورمز الوصول معًا.</p>}
             </div>
           )}
         </div>

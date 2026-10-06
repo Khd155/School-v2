@@ -3,7 +3,8 @@ import { $, minutesLabel, NETWORK_ERROR, post, setBusy, showAlert } from "./dom"
 
 const form = $<HTMLFormElement>("#lookup-form")!;
 const email = $<HTMLInputElement>("#email")!;
-const code = $<HTMLInputElement>("#code")!;
+/** Absent when the teacher has turned access codes off. */
+const code = $<HTMLInputElement>("#code");
 const submit = $<HTMLButtonElement>("button[type=submit]", form)!;
 const message = $("#form-message")!;
 
@@ -23,18 +24,18 @@ form.addEventListener("submit", async (event) => {
   if (submit.disabled) return;
 
   const e = normalizeEmail(email.value);
-  const c = normalizeAccessCode(code.value);
+  const c = code ? normalizeAccessCode(code.value) : null;
   const emailErr = !e ? "أدخل البريد المدرسي للطالب." : !isValidEmail(e) ? "صيغة البريد غير صحيحة. مثال: name@school.edu.sa" : null;
-  const codeErr = !code.value.trim() ? "أدخل رمز الوصول." : !c ? "رمز الوصول مكوّن من 8 أرقام." : null;
+  const codeErr = !code ? null : !code.value.trim() ? "أدخل رمز الوصول." : !c ? "رمز الوصول مكوّن من 8 أرقام." : null;
   fieldError(email, emailErr);
-  fieldError(code, codeErr);
+  if (code) fieldError(code, codeErr);
   showAlert(message, null);
   if (emailErr) return email.focus();
-  if (codeErr) return code.focus();
+  if (codeErr) return code?.focus();
 
   setBusy(submit, true, "جارٍ الاستعلام…");
   form.setAttribute("aria-busy", "true");
-  const res = await post<{ ok: boolean }>("/api/lookup", { email: e, code: c });
+  const res = await post<{ ok: boolean }>("/api/lookup", code ? { email: e, code: c } : { email: e });
   if (res.ok) {
     window.location.assign("/report");
     return; // keep the busy state while navigating
@@ -46,6 +47,9 @@ form.addEventListener("submit", async (event) => {
     case 401:
       return showAlert(message, "error", "تعذّر التحقق", "البريد أو رمز الوصول غير صحيح. تأكد منهما ثم حاول مرة أخرى.");
     case 404:
+      if (res.data.error === "email_not_found") {
+        return showAlert(message, "error", "لا توجد نتيجة", "لم نجد طالبًا بهذا البريد. تأكد من كتابته كما هو في حساب الطالب المدرسي.");
+      }
       return showAlert(message, "error", "لا توجد نتيجة", "تم التحقق بنجاح، لكن لا توجد نتيجة مسجلة لهذا الطالب حاليًا. تواصل مع معلم المادة.");
     case 429:
       return showAlert(

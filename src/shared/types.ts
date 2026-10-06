@@ -65,6 +65,8 @@ export type SchoolInfo = {
   enabledClasses: number[];
   teacherName: string;
   footerText: string;
+  /** When false, parents look up results with the school e-mail only. */
+  requireAccessCode: boolean;
   logos: { ministry: string | null; school: string | null };
 };
 

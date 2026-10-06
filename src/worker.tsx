@@ -121,18 +121,29 @@ app.get("/logo/:kind", async (c) => {
 });
 
 /**
- * Verifies e-mail + access code. An unknown e-mail and a wrong code return
- * the same 401, after the same work, so the response reveals neither.
+ * With codes required (default): verifies e-mail + access code. An unknown
+ * e-mail and a wrong code return the same 401, after the same work.
+ * With codes turned off by the teacher: e-mail only, still rate-limited per IP.
  */
 app.post("/api/lookup", async (c) => {
   if (!sameOrigin(c)) return jsonError(c, 403, "forbidden");
   const body = await c.req.json<{ email?: unknown; code?: unknown }>().catch(() => null);
   const email = typeof body?.email === "string" ? normalizeEmail(body.email) : "";
-  const code = typeof body?.code === "string" ? normalizeAccessCode(body.code) : null;
-  if (!isValidEmail(email) || !code) return jsonError(c, 400, "invalid_request");
+  if (!isValidEmail(email)) return jsonError(c, 400, "invalid_request");
 
   const ipBlock = await consumeAttempt(c.env.DB, LIMITS.lookupIp, clientIp(c));
   if (ipBlock) return jsonError(c, 429, "rate_limited", { retryAfterMinutes: ipBlock });
+
+  const settings = await getSchoolSettings(c.env.DB);
+  if (!settings.requireAccessCode) {
+    const report = await getStudentReport(c.env.DB, email);
+    if (!report) return jsonError(c, 404, "email_not_found");
+    await startReportSession(c, email, 0);
+    return c.json({ ok: true });
+  }
+
+  const code = typeof body?.code === "string" ? normalizeAccessCode(body.code) : null;
+  if (!code) return jsonError(c, 400, "invalid_request");
   const emailBlock = await consumeAttempt(c.env.DB, LIMITS.lookupEmail, email);
   if (emailBlock) return jsonError(c, 429, "rate_limited", { retryAfterMinutes: emailBlock });
 
@@ -221,7 +232,16 @@ app.get("/admin", (c) =>
 app.get("/admin/codes", (c) =>
   adminPage(c, "رموز الوصول", async (settings) => {
     const roster = await getCodeRoster(c.env.DB);
-    return <CodesContent roster={roster} siteUrl={new URL(c.req.url).origin} schoolName={settings.schoolName} subject={settings.subject} grade={settings.grade} />;
+    return (
+      <CodesContent
+        roster={roster}
+        siteUrl={new URL(c.req.url).origin}
+        schoolName={settings.schoolName}
+        subject={settings.subject}
+        grade={settings.grade}
+        codesRequired={settings.requireAccessCode}
+      />
+    );
   }),
 );
 
@@ -362,7 +382,7 @@ admin.post("/codes", async (c) => {
   return c.json({ codes: targets.map((t) => ({ name: t.name, email: t.email, classNo: t.classNo, code: byEmail.get(t.email)! })) });
 });
 
-const TEXT_LIMITS: Record<Exclude<keyof SchoolSettings, "enabledClasses">, number> = {
+const TEXT_LIMITS: Record<Exclude<keyof SchoolSettings, "enabledClasses" | "requireAccessCode">, number> = {
   schoolName: 120,
   educationOffice: 160,
   academicYear: 40,
@@ -403,6 +423,8 @@ admin.post("/school", async (c) => {
   if (classes.length === 0) errors.enabledClasses = "حدد فصلًا واحدًا على الأقل.";
   else if (classes.some((n) => !Number.isInteger(n) || n < 1 || n > 30)) errors.enabledClasses = "أرقام الفصول يجب أن تكون أعدادًا صحيحة بين 1 و30.";
   settings.enabledClasses = [...new Set(classes)].sort((a, b) => a - b);
+  // Unchecked checkboxes are not submitted, so absence means "off".
+  settings.requireAccessCode = form.get("requireAccessCode") === "1";
 
   const logoChanges: LogoChange[] = [];
   for (const kind of LOGO_KINDS) {

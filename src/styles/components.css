@@ -142,3 +142,17 @@
 
 /* File inputs wrapped in a button-styled label */
 .btn:has(input:focus-visible) { box-shadow: var(--focus-ring); }
+
+/* Checkbox with label and hint */
+.check { display: flex; align-items: flex-start; gap: var(--space-3); cursor: pointer; }
+.check input {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin: 3px 0 0;
+  accent-color: var(--color-action);
+  cursor: pointer;
+}
+.check input:focus-visible { outline: 2px solid var(--color-action); outline-offset: 2px; }
+.check > span { display: grid; gap: var(--space-1); }
+.check-label { font-weight: var(--weight-medium); color: var(--color-heading); }

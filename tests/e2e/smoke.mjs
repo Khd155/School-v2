@@ -245,6 +245,35 @@ try {
   await parent.waitForURL(`${BASE}/`);
   step("re-issuing a code ends existing parent sessions");
 
+  /* ---------- Teacher turns access codes off, then on again ---------- */
+  await sql("DELETE FROM rate_limits");
+  await admin.goto(`${BASE}/admin/school`);
+  await admin.uncheck("input[name=requireAccessCode]");
+  await admin.click("text=حفظ التعديلات");
+  await admin.getByText("حُفظت التعديلات").waitFor();
+  await parent.goto(BASE);
+  assert.equal(await parent.locator("#code").count(), 0, "no code field when codes are off");
+  await parent.fill("#email", "nobody@test.school.example");
+  await parent.click("text=عرض التقرير");
+  await parent.getByText("لم نجد طالبًا بهذا البريد").waitFor();
+  await parent.fill("#email", email);
+  await parent.click("text=عرض التقرير");
+  await parent.waitForURL(`${BASE}/report`);
+  await admin.goto(`${BASE}/admin/codes`);
+  await admin.getByText("رمز الوصول غير مطلوب حاليًا").waitFor();
+  step("codes off: e-mail-only lookup works, unknown e-mail is reported, codes page warns");
+
+  await admin.goto(`${BASE}/admin/school`);
+  await admin.check("input[name=requireAccessCode]");
+  await admin.click("text=حفظ التعديلات");
+  await admin.getByText("حُفظت التعديلات").waitFor();
+  await parent.goto(`${BASE}/report`);
+  await parent.waitForURL(`${BASE}/`);
+  assert.equal(await parent.locator("#code").count(), 1, "code field back");
+  const noCode = await fetch(`${BASE}/api/lookup`, { method: "POST", headers: { origin: BASE, "content-type": "application/json" }, body: JSON.stringify({ email }) });
+  assert.equal(noCode.status, 400, "code required again");
+  step("codes on again: e-mail-only sessions end and the API requires a code");
+
   /* ---------- Versions & restore ---------- */
   await admin.goto(`${BASE}/admin`);
   await admin.setInputFiles("input[type=file]", path.join(fixtures, "valid.xlsx"));

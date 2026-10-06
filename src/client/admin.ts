@@ -304,7 +304,10 @@ if (schoolForm) {
     clearErrors();
     setBusy(submit, true, "جارٍ الحفظ…");
     const form = new FormData();
-    for (const el of $$<HTMLInputElement | HTMLTextAreaElement>("input[name], textarea[name]", schoolForm)) form.append(el.name, el.value);
+    for (const el of $$<HTMLInputElement | HTMLTextAreaElement>("input[name], textarea[name]", schoolForm)) {
+      if (el instanceof HTMLInputElement && el.type === "checkbox" && !el.checked) continue;
+      form.append(el.name, el.value);
+    }
     for (const [kind, state] of Object.entries(logoState)) {
       if (state.remove) form.append(`${kind}Remove`, "1");
       else if (state.file) form.append(`${kind}Logo`, state.file);

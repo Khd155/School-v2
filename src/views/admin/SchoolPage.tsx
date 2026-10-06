@@ -5,7 +5,7 @@ import type { SchoolInfo } from "../../shared/types";
 type Settings = Omit<SchoolInfo, "logos">;
 type Props = { settings: Settings; logos: SchoolInfo["logos"]; log: { changedAt: string; summary: string }[] };
 
-type TextKey = Exclude<keyof Settings, "enabledClasses" | "footerText">;
+type TextKey = Exclude<keyof Settings, "enabledClasses" | "footerText" | "requireAccessCode">;
 
 function TextField({ name, label, value, required, hint, span, max }: { name: TextKey; label: string; value: string; required?: boolean; hint?: string; span?: boolean; max: number }) {
   return (
@@ -91,6 +91,21 @@ export function SchoolContent({ settings, logos, log }: Props) {
             </div>
             <TextField name="teacherName" label="اسم المعلم" value={settings.teacherName} max={80} />
           </div>
+        </section>
+
+        <section class="panel admin-section" aria-labelledby="sec-lookup">
+          <div class="admin-section-head">
+            <h2 id="sec-lookup">الاستعلام</h2>
+          </div>
+          <label class="check">
+            <input type="checkbox" name="requireAccessCode" value="1" checked={settings.requireAccessCode} aria-describedby="code-toggle-hint" />
+            <span>
+              <span class="check-label">طلب رمز الوصول مع البريد المدرسي</span>
+              <span class="hint" id="code-toggle-hint">
+                عند الإلغاء يكفي البريد المدرسي لعرض تقرير الطالب، فمن يعرف بريد طالب أو يخمّنه يستطيع رؤية درجاته. يُنصح بإبقائه مفعّلًا.
+              </span>
+            </span>
+          </label>
         </section>
 
         <section class="panel admin-section" aria-labelledby="sec-logos">

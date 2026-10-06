@@ -53,6 +53,7 @@ export async function verifyAccessCode(env: Env, email: string, code: string): P
 
 export const REPORT_COOKIE = "__Host-report";
 const REPORT_TTL_SECONDS = 30 * 60;
+/** v = access-code version, or 0 for a session opened while codes were not required. */
 type ReportToken = { e: string; v: number; exp: number };
 
 const cookieBase = { httpOnly: true, secure: true, sameSite: "Strict", path: "/" } as const;
@@ -66,10 +67,17 @@ export function endReportSession(c: Ctx) {
   setCookie(c, REPORT_COOKIE, "", { ...cookieBase, maxAge: 0 });
 }
 
-/** E-mail of the verified student, or null if missing, expired, or the code was re-issued. */
+/**
+ * E-mail of the verified student, or null if missing or expired, if the code was
+ * re-issued, or if it was opened without a code and codes are now required again.
+ */
 export async function readReportSession(c: Ctx): Promise<string | null> {
   const token = await verifyPayload<ReportToken>(c.env.SESSION_SECRET, getCookie(c, REPORT_COOKIE));
   if (!token || typeof token.e !== "string" || token.exp * 1000 < Date.now()) return null;
+  if (token.v === 0) {
+    const s = await c.env.DB.prepare("SELECT require_access_code FROM app_settings WHERE id = 1").first<{ require_access_code: number }>();
+    return s?.require_access_code === 0 ? token.e : null;
+  }
   const row = await c.env.DB.prepare("SELECT version FROM access_codes WHERE email = ?").bind(token.e).first<{ version: number }>();
   return row?.version === token.v ? token.e : null;
 }
