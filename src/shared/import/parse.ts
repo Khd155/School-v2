@@ -76,15 +76,20 @@ export function normalizeHeader(text: string): string {
     .toLowerCase();
 }
 
-const RANGE_HEADER = /^(\d+)-(\d+)$/;
+/**
+ * Verse-range headers come in several forms: «1-6», «من 1 - 6», «الآيات من 1 إلى 6».
+ * After normalizeHeader these become e.g. "1-6", "من1-6", "الايات من1الي6" (spaces removed).
+ */
+const RANGE_HEADER = /^(?:الايات|ايات)?(?:من)?(\d+)(?:-|الي)(\d+)$/;
 
 function headerMatches(cellText: string, spec: ColumnSpec): boolean {
   const n = normalizeHeader(cellText);
   if ([spec.header, ...(spec.aliases ?? [])].some((h) => normalizeHeader(h) === n)) return true;
-  // Accept ranges typed in either order ("6-1" for "1-6").
-  const want = spec.header.match(RANGE_HEADER);
+  const want = normalizeHeader(spec.header).match(RANGE_HEADER);
   const got = n.match(RANGE_HEADER);
-  return !!(want && got && want[1] === got[2] && want[2] === got[1]);
+  if (!want || !got) return false;
+  // Accept the range in either order ("6-1" for "1-6").
+  return (want[1] === got[1] && want[2] === got[2]) || (want[1] === got[2] && want[2] === got[1]);
 }
 
 /* ------------------------------------------------------------------ */
@@ -273,9 +278,21 @@ export function parseGrid(sheetsIn: GridSheet[], enabledClasses: number[]): Impo
       s4: parseRecitation(at(row, "quran_s4")),
     };
     const hadith = { h1: parseRecitation(at(row, "hadith_h1")), h2: parseRecitation(at(row, "hadith_h2")) };
-    for (const rec of [...Object.values(quran), ...Object.values(hadith)]) {
+    const recitations: [string, Recitation][] = [
+      ["الآيات 1–6", quran.s1],
+      ["الآيات 7–16", quran.s2],
+      ["الآيات 17–24", quran.s3],
+      ["الآيات 25–33", quran.s4],
+      ["حديث 1", hadith.h1],
+      ["حديث 2", hadith.h2],
+    ];
+    for (const [label, rec] of recitations) {
       if (rec.status === "unknown") {
-        issues.push({ level: "warning", row: r, message: `حالة تسميع غير معروفة: «${rec.raw}» (المتوقع «تم» أو «لم يتم» أو فارغ).` });
+        issues.push({
+          level: "warning",
+          row: r,
+          message: `حالة تسميع غير معروفة في «${label}»: «${rec.raw}» (المتوقع «تم» أو «لم يتم» أو فارغ). ستُعرض كما هي.`,
+        });
       }
     }
 

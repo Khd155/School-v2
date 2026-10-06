@@ -115,6 +115,16 @@ describe("cell helpers", () => {
     expect(normalizeHeader("1–6")).toBe("1-6");
   });
 
+  it("matches verse-range headers written with «من» and uneven spacing", () => {
+    const header = ["الطالب", "Email", "class", "الواجبات", "المشاركة و التفاعل", "المهام الآدائية", "المجموع", "القرآن الكريم", "الاختبار التحريري", "المجموع2", "المجموع النهائي", "ملاحظة", "من 1 - 6", "من 7-16", "من 17- 24", "الآيات من 25 إلى 33", "حديث 1", "حديث2"];
+    const row = ["طالب", "a@test.school.example", 4, 1, 1, 1, 3, 1, 1, 2, 5, "", "تم", "لم يتم", "", "4", "تم", "تم"];
+    const cell = (v: string | number) => (v === "" ? { kind: "empty" as const } : typeof v === "number" ? { kind: "number" as const, value: v } : { kind: "text" as const, value: v });
+    const r = parseGrid([{ name: "ورقة1", rows: [header.map(cell), row.map(cell)] }], [4]);
+    expect(r.issues.filter((i) => i.level === "error")).toEqual([]);
+    expect(r.students[0].quran).toEqual({ s1: { status: "done" }, s2: { status: "not_done" }, s3: { status: "empty" }, s4: { status: "unknown", raw: "4" } });
+    expect(r.issues.some((i) => i.message.includes("«الآيات 25–33»: «4»"))).toBe(true);
+  });
+
   it("parses Arabic-Indic numerals and keeps other text", () => {
     expect(parseScore(readCell("١٥٫٥"))).toEqual({ num: 15.5, raw: null });
     expect(parseScore(readCell("  "))).toEqual({ num: null, raw: null });
