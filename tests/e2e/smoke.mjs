@@ -90,6 +90,21 @@ try {
   await shot(admin, "admin-data");
   step("valid workbook previews with warnings and commits");
 
+  /* ---------- Grade analysis ---------- */
+  await admin.goto(`${BASE}/admin/grades`);
+  const firstRank = await admin.locator("tbody tr").first().locator("td").allInnerTexts();
+  assert.equal(firstRank[1].trim(), "محمد تجربة 2", "lowest final total first");
+  assert.equal(firstRank[4].trim(), "0", "zero is ranked, not skipped");
+  assert.ok((await admin.locator("#grades-title").locator("xpath=..").innerText()).includes("2 غير مسجل"), "empty and text values counted separately");
+  await admin.goto(`${BASE}/admin/grades?field=homework&class=5&order=desc&limit=all`);
+  const hw = (await admin.locator("tbody td.grade-cell-value").allInnerTexts()).map(Number);
+  assert.equal(hw.length, 8, "all 8 students of class 5");
+  assert.deepEqual([...hw].sort((a, b) => b - a), hw, "sorted highest first");
+  const below = await admin.evaluate(async () => (await fetch("/admin/grades.csv?field=finalTotal&below=60&limit=all")).text());
+  assert.ok(below.includes("المجموع النهائي") && !/,"6\d"\s*$/m.test(below), "CSV export respects the threshold");
+  await shot(admin, "admin-grades");
+  step("grade analysis ranks by any grade, per class, with threshold and CSV");
+
   /* ---------- Access codes ---------- */
   await admin.goto(`${BASE}/admin/codes`);
   await admin.click("text=توليد رموز للطلاب بلا رمز (24)");

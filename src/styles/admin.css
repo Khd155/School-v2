@@ -238,3 +238,15 @@
 .figure-of { font-size: var(--text-sm); font-weight: var(--weight-regular); color: var(--color-text-muted); }
 .stats-grid { display: grid; gap: var(--space-5); }
 @media (min-width: 900px) { .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Grade analysis */
+.grades-form { display: grid; gap: var(--space-4); grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: end; }
+.grades-form .field + .field { margin-top: 0; }
+.grades-form-actions { grid-column: 1 / -1; }
+.grades-form-actions .btn { width: 100%; }
+.grade-cell-value { font-weight: var(--weight-semibold); color: var(--color-heading); }
+@media (min-width: 900px) {
+  .grades-form { grid-template-columns: 1.4fr 1fr 1fr 1fr 1fr auto; }
+  .grades-form-actions { grid-column: auto; }
+  .grades-form-actions .btn { width: auto; }
+}

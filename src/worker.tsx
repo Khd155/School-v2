@@ -1,7 +1,7 @@
 import { Hono, type Context } from "hono";
 import type { Child } from "hono/jsx";
 import { isValidEmail, normalizeAccessCode, normalizeEmail } from "./shared/access-code-format";
-import { formatDateTimeRiyadh } from "./shared/format";
+import { formatDateTimeRiyadh, formatNumber } from "./shared/format";
 import { validateGrid } from "./shared/import/grid";
 import { ImportFileError, parseGrid } from "./shared/import/parse";
 import {
@@ -32,6 +32,7 @@ import {
   type LogFilter,
   type LookupOutcome,
 } from "./server/lookup-log";
+import { parseGradeQuery, rankByGrade, SCORE_FIELDS } from "./server/analysis";
 import { renderReportPdf } from "./server/pdf";
 import { clearAttempts, consumeAttempt, LIMITS, pruneRateLimits } from "./server/rate-limit";
 import { getLogo, getSchoolInfo, getSchoolSettings, getSettingsLog, LOGO_KINDS, updateSchoolSettings, type LogoChange, type SchoolSettings } from "./server/school";
@@ -55,6 +56,7 @@ import { AccountContent } from "./views/admin/AccountPage";
 import { AdminLayout } from "./views/admin/AdminLayout";
 import { CodesContent } from "./views/admin/CodesPage";
 import { DataContent, ImportPreview } from "./views/admin/DataPage";
+import { GradesContent } from "./views/admin/GradesPage";
 import { LoginPage } from "./views/admin/LoginPage";
 import { LogContent, OUTCOME_LABELS } from "./views/admin/LogPage";
 import { SchoolContent } from "./views/admin/SchoolPage";
@@ -331,6 +333,39 @@ app.get("/admin/log", (c) =>
     );
   }),
 );
+
+app.get("/admin/grades", (c) =>
+  adminPage(c, "تحليل الدرجات", async () => {
+    const stats = await getActiveClassStats(c.env.DB);
+    const classes = stats.map((s) => s.classNo);
+    const query = parseGradeQuery(new URL(c.req.url).searchParams, classes);
+    const result = await rankByGrade(c.env.DB, query);
+    return <GradesContent query={query} result={result} classes={classes} hasData={classes.length > 0} />;
+  }),
+);
+
+app.get("/admin/grades.csv", async (c) => {
+  if (!(await getAdminSession(c))) return c.redirect("/admin/login", 303);
+  const classes = (await getActiveClassStats(c.env.DB)).map((s) => s.classNo);
+  const query = parseGradeQuery(new URL(c.req.url).searchParams, classes);
+  const { rows } = await rankByGrade(c.env.DB, query);
+  const label = SCORE_FIELDS.find((f) => f.key === query.field)!.label;
+  const lines = [
+    ["#", "الطالب", "الفصل", "البريد", label].map(csvCell).join(","),
+    ...rows.map((r, i) => [i + 1, r.name, r.classNo, r.email, formatNumber(r.value)].map(csvCell).join(",")),
+  ];
+  return c.body("\uFEFF" + lines.join("\r\n"), 200, {
+    "Content-Type": "text/csv; charset=utf-8",
+    "Content-Disposition": `attachment; filename="grades.csv"; filename*=UTF-8''${encodeURIComponent(`تحليل الدرجات - ${label}.csv`)}`,
+  });
+});
+
+/** Quotes a CSV cell and neutralises spreadsheet formula injection. */
+function csvCell(v: string | number | null): string {
+  const text = v === null ? "" : String(v);
+  const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+  return `"${safe.replace(/"/g, '""')}"`;
+}
 
 /** Full search log as CSV (UTF-8 with BOM so Excel shows Arabic). Read-only, so no CSRF token needed. */
 app.get("/admin/log.csv", async (c) => {
