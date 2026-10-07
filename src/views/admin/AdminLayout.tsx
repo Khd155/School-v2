@@ -4,6 +4,7 @@ import { LogoutIcon } from "../icons";
 
 const LINKS = [
   { href: "/admin", label: "بيانات الطلاب" },
+  { href: "/admin/students", label: "الطلاب" },
   { href: "/admin/grades", label: "تحليل الدرجات" },
   { href: "/admin/codes", label: "رموز الوصول" },
   { href: "/admin/log", label: "سجل البحث" },

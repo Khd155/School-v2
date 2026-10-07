@@ -116,6 +116,26 @@ try {
   assert.equal(await admin.locator(".report-toolbar a").getAttribute("href"), "/admin/grades", "no external back links");
   assert.equal((await fetch(`${BASE}/admin/report?email=student401%40test.school.example`, { redirect: "manual" })).status, 303, "needs a teacher session");
   step("teacher can open any student's report from the dashboard");
+
+  /* ---------- Students search list ---------- */
+  await admin.goto(`${BASE}/admin/students`);
+  assert.equal(await admin.locator("#students-body tr[data-email]:not([hidden])").count(), 24, "all students listed");
+  await admin.fill("#students-q", "تجربة 2");
+  assert.ok((await admin.locator("#students-count").innerText()).startsWith("3 من 24"), "instant filter by name");
+  await admin.selectOption("#students-class", "5");
+  assert.equal(await admin.locator("#students-body tr[data-email]:not([hidden])").count(), 1, "class filter narrows further");
+  await admin.fill("#students-q", "student6");
+  await admin.selectOption("#students-class", "");
+  assert.equal(await admin.locator("#students-body tr[data-email]:not([hidden])").count(), 8, "search by e-mail");
+  await admin.fill("#students-q", "لا أحد بهذا الاسم");
+  assert.ok(await admin.locator("#students-empty").isVisible(), "empty state");
+  await admin.fill("#students-q", "تجربة 2");
+  await admin.locator("#students-body tr:not([hidden])").first().getByRole("link", { name: "التقرير" }).click();
+  await admin.waitForURL(/\/admin\/report\?/);
+  await admin.locator(".report-toolbar a").click();
+  await admin.waitForURL(/\/admin\/students\?q=/);
+  assert.equal(await admin.inputValue("#students-q"), "تجربة 2", "back keeps the search");
+  step("students search list filters instantly and opens reports");
   step("grade analysis ranks by any grade, per class, with threshold and CSV");
 
   /* ---------- Access codes ---------- */

@@ -44,6 +44,7 @@ import {
   getCodeRoster,
   getDataState,
   getStudentReport,
+  listStudents,
   KEPT_VERSIONS,
   listVersions,
   restoreVersion,
@@ -58,6 +59,7 @@ import { AdminLayout } from "./views/admin/AdminLayout";
 import { CodesContent } from "./views/admin/CodesPage";
 import { DataContent, ImportPreview } from "./views/admin/DataPage";
 import { GradesContent } from "./views/admin/GradesPage";
+import { StudentsContent } from "./views/admin/StudentsPage";
 import { LoginPage } from "./views/admin/LoginPage";
 import { LogContent, OUTCOME_LABELS } from "./views/admin/LogPage";
 import { SchoolContent } from "./views/admin/SchoolPage";
@@ -287,6 +289,15 @@ app.get("/admin", (c) =>
     },
     ["admin-import"],
   ),
+);
+
+app.get("/admin/students", (c) =>
+  adminPage(c, "الطلاب", async () => {
+    const students = await listStudents(c.env.DB);
+    const cls = Number(c.req.query("class"));
+    const classNo = students.some((s) => s.classNo === cls) ? cls : null;
+    return <StudentsContent students={students} q={(c.req.query("q") ?? "").slice(0, 100)} classNo={classNo} />;
+  }),
 );
 
 app.get("/admin/codes", (c) =>

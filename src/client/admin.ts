@@ -358,3 +358,42 @@ if (passwordForm) {
     showAlert(message, "success", undefined, "تم تغيير كلمة المرور.");
   });
 }
+
+/* ---------------- Students search list ---------------- */
+
+const studentsRoot = $("#students-root");
+if (studentsRoot) {
+  const search = $<HTMLInputElement>("#students-q", studentsRoot);
+  const classFilter = $<HTMLSelectElement>("#students-class", studentsRoot);
+  const count = $("#students-count", studentsRoot);
+  const rows = $$("#students-body tr[data-email]", studentsRoot);
+  const apply = () => {
+    const q = search!.value.trim().toLowerCase();
+    const cls = classFilter!.value;
+    let shown = 0;
+    for (const row of rows) {
+      const match = (!cls || row.dataset.class === cls) && (!q || row.dataset.name!.includes(q) || row.dataset.email!.includes(q));
+      row.hidden = !match;
+      if (match) shown++;
+    }
+    $("#students-empty", studentsRoot)!.hidden = shown > 0;
+    if (count) count.textContent = `${shown} من ${rows.length} طالبًا`;
+    // Keep the URL in sync so «رجوع» and refresh keep the same search.
+    const params = new URLSearchParams();
+    if (q) params.set("q", search!.value.trim());
+    if (cls) params.set("class", cls);
+    history.replaceState(null, "", `/admin/students${[...params].length ? `?${params}` : ""}`);
+  };
+  search?.addEventListener("input", apply);
+  classFilter?.addEventListener("change", apply);
+  // «رجوع» from a report should return to the same search.
+  studentsRoot.addEventListener("click", (e) => {
+    const link = (e.target as HTMLElement).closest<HTMLAnchorElement>("a[href^='/admin/report']");
+    if (!link) return;
+    const url = new URL(link.href);
+    url.searchParams.set("back", location.pathname + location.search);
+    link.href = url.pathname + url.search;
+  });
+  // Enter should not reload the page when filtering already happened.
+  search?.form?.addEventListener("submit", (e) => e.preventDefault());
+}

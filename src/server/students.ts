@@ -205,3 +205,18 @@ export async function getCodeRoster(db: D1Database): Promise<CodeRosterEntry[]> 
     .all<{ name: string; email: string; class_no: number; generated_at: string | null }>();
   return results.map((r) => ({ name: r.name, email: r.email, classNo: r.class_no, codeGeneratedAt: r.generated_at }));
 }
+
+export type StudentListEntry = { name: string; email: string; classNo: number; finalTotal: ScoreValueLite };
+type ScoreValueLite = { num: number | null; raw: string | null };
+
+/** All students in the live data, for the teacher's search list. */
+export async function listStudents(db: D1Database): Promise<StudentListEntry[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT s.name, s.email, s.class_no, json_extract(s.scores, '$.finalTotal') AS final_total
+       FROM app_state st JOIN students s ON s.dataset_id = st.active_dataset_id
+       WHERE st.id = 1 ORDER BY s.class_no, s.name`,
+    )
+    .all<{ name: string; email: string; class_no: number; final_total: string }>();
+  return results.map((r) => ({ name: r.name, email: r.email, classNo: r.class_no, finalTotal: JSON.parse(r.final_total) }));
+}
