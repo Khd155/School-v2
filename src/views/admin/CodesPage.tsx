@@ -149,6 +149,9 @@ export function CodesContent({ roster, siteUrl, schoolName, subject, grade, code
                       {s.codeGeneratedAt ? <span class="muted">صدر في {formatDateRiyadh(s.codeGeneratedAt)}</span> : <span class="tag tag-missing">بلا رمز</span>}
                     </td>
                     <td style="text-align: end">
+                      <a class="btn btn-ghost btn-sm" href={`/admin/report?${new URLSearchParams({ email: s.email, back: "/admin/codes" })}`}>
+                        التقرير
+                      </a>
                       <button type="button" class="btn btn-secondary btn-sm" data-regenerate={s.codeGeneratedAt ? "1" : "0"}>
                         {s.codeGeneratedAt ? "إعادة توليد" : "توليد"}
                       </button>

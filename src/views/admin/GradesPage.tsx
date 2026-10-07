@@ -119,6 +119,9 @@ export function GradesContent({ query, result, classes, hasData }: Props) {
                       <th class="num">الفصل</th>
                       <th>البريد</th>
                       <th class="num">{fieldLabel}</th>
+                      <th>
+                        <span class="visually-hidden">التقرير</span>
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -129,6 +132,11 @@ export function GradesContent({ query, result, classes, hasData }: Props) {
                         <td class="num">{r.classNo}</td>
                         <td class="ltr nowrap">{r.email}</td>
                         <td class="num grade-cell-value">{formatNumber(r.value)}</td>
+                        <td style="text-align: end">
+                          <a class="btn btn-ghost btn-sm" href={`/admin/report?${new URLSearchParams({ email: r.email, back: `/admin/grades?${params.toString()}` })}`}>
+                            التقرير
+                          </a>
+                        </td>
                       </tr>
                     ))}
                   </tbody>

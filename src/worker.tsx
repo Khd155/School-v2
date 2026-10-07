@@ -19,6 +19,7 @@ import {
 } from "./server/auth";
 import { safeEqual, sha256Hex } from "./server/crypto";
 import { assertSecrets, type AppEnv } from "./server/env";
+import type { SchoolInfo, StudentReport } from "./shared/types";
 import { validateLogo } from "./server/images";
 import {
   allLookups,
@@ -225,6 +226,11 @@ app.get("/api/report/pdf", async (c) => {
   if (!email) return jsonError(c, 401, "unauthorized");
   const [report, school] = await Promise.all([getStudentReport(c.env.DB, email), getSchoolInfo(c.env.DB)]);
   if (!report) return jsonError(c, 404, "no_result");
+  return pdfResponse(c, report, school);
+});
+
+/** Renders one student's report as a PDF download (shared by the parent and teacher views). */
+async function pdfResponse(c: Context<AppEnv>, report: StudentReport, school: SchoolInfo) {
   try {
     const origin = new URL(c.req.url).origin;
     const markup = String(<ReportDocument report={report} school={school} issuedAt={new Date()} />);
@@ -238,7 +244,7 @@ app.get("/api/report/pdf", async (c) => {
     console.error("pdf render failed", err);
     return jsonError(c, 500, "pdf_failed");
   }
-});
+}
 
 /* ================================================================== */
 /* Teacher dashboard — pages                                            */
@@ -366,6 +372,33 @@ function csvCell(v: string | number | null): string {
   const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
   return `"${safe.replace(/"/g, '""')}"`;
 }
+
+/**
+ * Teacher's view of any student's report (same document parents see). Not written
+ * to the search log, so parent-viewing statistics stay accurate.
+ */
+app.get("/admin/report", async (c) => {
+  if (!(await getAdminSession(c))) return c.redirect("/admin/login", 303);
+  const email = normalizeEmail(c.req.query("email") ?? "");
+  const backParam = c.req.query("back") ?? "";
+  // Only same-site dashboard paths, never an external URL.
+  const backHref = /^\/admin(\/[\w-]*)?(\?[^\s]*)?$/.test(backParam) ? backParam : "/admin/grades";
+  const [report, school] = isValidEmail(email) ? await Promise.all([getStudentReport(c.env.DB, email), getSchoolInfo(c.env.DB)]) : [null, null];
+  if (!report || !school) {
+    return page(c, <ErrorPage title="الطالب غير موجود" message="لا يوجد طالب بهذا البريد في البيانات المنشورة حاليًا." />, 404);
+  }
+  const pdfUrl = `/admin/report.pdf?${new URLSearchParams({ email })}`;
+  return page(c, <ReportPage report={report} school={school} issuedAt={new Date()} mode={{ kind: "teacher", backHref, pdfUrl }} />);
+});
+
+app.get("/admin/report.pdf", async (c) => {
+  if (!(await getAdminSession(c))) return jsonError(c, 401, "unauthorized");
+  const email = normalizeEmail(c.req.query("email") ?? "");
+  if (!isValidEmail(email)) return jsonError(c, 400, "invalid_request");
+  const [report, school] = await Promise.all([getStudentReport(c.env.DB, email), getSchoolInfo(c.env.DB)]);
+  if (!report) return jsonError(c, 404, "no_result");
+  return pdfResponse(c, report, school);
+});
 
 /** Full search log as CSV (UTF-8 with BOM so Excel shows Arabic). Read-only, so no CSRF token needed. */
 app.get("/admin/log.csv", async (c) => {

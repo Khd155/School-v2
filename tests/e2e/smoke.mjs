@@ -103,6 +103,19 @@ try {
   const below = await admin.evaluate(async () => (await fetch("/admin/grades.csv?field=finalTotal&below=60&limit=all")).text());
   assert.ok(below.includes("المجموع النهائي") && !/,"6\d"\s*$/m.test(below), "CSV export respects the threshold");
   await shot(admin, "admin-grades");
+
+  // Teacher opens any student's report from the ranking.
+  const logBefore = sql("SELECT COUNT(*) AS n FROM lookup_log")[0].n;
+  await admin.goto(`${BASE}/admin/grades`);
+  await admin.locator("tbody tr").first().getByRole("link", { name: "التقرير" }).click();
+  await admin.waitForURL(/\/admin\/report\?/);
+  assert.ok((await admin.locator(".report-facts").innerText()).includes("محمد تجربة 2"), "teacher sees that student's report");
+  assert.ok((await admin.locator(".report-toolbar a").getAttribute("href")).startsWith("/admin/grades?"), "back returns to the same ranking");
+  assert.equal(sql("SELECT COUNT(*) AS n FROM lookup_log")[0].n, logBefore, "teacher views are not counted in the search log");
+  await admin.goto(`${BASE}/admin/report?email=student401%40test.school.example&back=https://evil.example/`);
+  assert.equal(await admin.locator(".report-toolbar a").getAttribute("href"), "/admin/grades", "no external back links");
+  assert.equal((await fetch(`${BASE}/admin/report?email=student401%40test.school.example`, { redirect: "manual" })).status, 303, "needs a teacher session");
+  step("teacher can open any student's report from the dashboard");
   step("grade analysis ranks by any grade, per class, with threshold and CSV");
 
   /* ---------- Access codes ---------- */

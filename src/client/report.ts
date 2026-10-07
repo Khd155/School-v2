@@ -15,8 +15,9 @@ pdfButton?.addEventListener("click", async () => {
   setBusy(pdfButton, true, "جارٍ التجهيز…");
   showAlert(message, null);
   try {
-    const res = await fetch("/api/report/pdf", { cache: "no-store", credentials: "same-origin" });
-    if (res.status === 401) return window.location.replace("/");
+    // Parents use their session endpoint; the teacher's view passes a per-student URL.
+    const res = await fetch(pdfButton.dataset.pdfUrl ?? "/api/report/pdf", { cache: "no-store", credentials: "same-origin" });
+    if (res.status === 401) return window.location.replace(pdfButton.dataset.expiredUrl ?? "/");
     if (!res.ok) throw new Error(String(res.status));
     saveBlob(await res.blob(), filenameFrom(res.headers.get("Content-Disposition")) ?? "تقرير التحصيل.pdf");
   } catch {
