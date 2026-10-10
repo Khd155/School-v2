@@ -3,10 +3,12 @@ import { BandedScore, BandLegend, BulkBar, SelectAllHeader, SelectCell } from ".
 import { PageHead } from "./AdminLayout";
 import { formatNumber } from "../../shared/format";
 import { SCORE_FIELDS, type GradeQuery, type GradeResult } from "../../server/analysis";
+import type { ScoreMax } from "../../shared/types";
 
-type Props = { query: GradeQuery; result: GradeResult; classes: number[]; hasData: boolean; maxBatch: number };
+type Props = { query: GradeQuery; result: GradeResult; classes: number[]; hasData: boolean; maxBatch: number; scoreMax: ScoreMax };
 
-export function GradesContent({ query, result, classes, hasData, maxBatch }: Props) {
+export function GradesContent({ query, result, classes, hasData, maxBatch, scoreMax }: Props) {
+  const max = scoreMax[query.field];
   const fieldLabel = SCORE_FIELDS.find((f) => f.key === query.field)!.label;
   const params = new URLSearchParams({
     field: query.field,
@@ -112,7 +114,7 @@ export function GradesContent({ query, result, classes, hasData, maxBatch }: Pro
               <p class="hint">لا يوجد طلاب مطابقون لهذه الخيارات.</p>
             ) : (
               <>
-              {query.field === "finalTotal" && <BandLegend />}
+              {max !== null && <BandLegend />}
               <div class="table-wrap">
                 <table class="table" data-bulk>
                   <thead>
@@ -137,7 +139,7 @@ export function GradesContent({ query, result, classes, hasData, maxBatch }: Pro
                         <td class="num">{r.classNo}</td>
                         <td class="ltr nowrap">{r.email}</td>
                         <td class="num grade-cell-value">
-                          {query.field === "finalTotal" ? <BandedScore value={r.value} text={formatNumber(r.value)} /> : formatNumber(r.value)}
+                          <BandedScore value={r.value} max={max} text={max ? `${formatNumber(r.value)} من ${formatNumber(max)}` : formatNumber(r.value)} />
                         </td>
                         <td style="text-align: end">
                           <a class="btn btn-ghost btn-sm" href={`/admin/report?${new URLSearchParams({ email: r.email, back: `/admin/grades?${params.toString()}` })}`}>

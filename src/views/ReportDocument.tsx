@@ -1,5 +1,5 @@
 import { Masthead } from "./Masthead";
-import { formatDateTimeRiyadh, formatNumber, formatScore, isRecorded, NOT_RECORDED } from "../shared/format";
+import { formatDateTimeRiyadh, formatNumber, formatScore, isRecorded, NOT_RECORDED, scoreBand } from "../shared/format";
 import {
   HADITH_KEYS,
   QURAN_SEGMENTS,
@@ -22,6 +22,8 @@ type Props = {
 export function ReportDocument({ report, school, issuedAt }: Props) {
   const { student, stats, dataUpdatedAt } = report;
   const s = student.scores;
+  const max = school.scoreMax;
+  const finalBand = scoreBand(s.finalTotal.num, max.finalTotal);
   const termLine = [school.academicYear && `العام الدراسي ${school.academicYear}`, school.term]
     .filter(Boolean)
     .join(" · ");
@@ -60,8 +62,9 @@ export function ReportDocument({ report, school, issuedAt }: Props) {
       <section className="report-summary" aria-label="المجموع النهائي ومقارنته بالفصل">
         <div className="summary-final">
           <span className="summary-label">المجموع النهائي</span>
-          <span className={`summary-value num${isRecorded(s.finalTotal) ? "" : " is-empty"}`}>
+          <span className={`summary-value num${isRecorded(s.finalTotal) ? "" : " is-empty"}${finalBand ? ` score-band-${finalBand}` : ""}`}>
             {formatScore(s.finalTotal)}
+            {max.finalTotal && s.finalTotal.num !== null && <span className="summary-max"> من {formatNumber(max.finalTotal)}</span>}
           </span>
         </div>
         <dl className="summary-stats">
@@ -80,19 +83,19 @@ export function ReportDocument({ report, school, issuedAt }: Props) {
         <h2 id="grades-title" className="section-title">تفاصيل الدرجات</h2>
         <div className="grades">
           <div className="grade-row grade-row-3">
-            <GradeCell label="الواجبات" value={s.homework} />
-            <GradeCell label="المشاركة والتفاعل" value={s.participation} />
-            <GradeCell label="المهام الأدائية" value={s.performance} />
+            <GradeCell label="الواجبات" value={s.homework} max={max.homework} />
+            <GradeCell label="المشاركة والتفاعل" value={s.participation} max={max.participation} />
+            <GradeCell label="المهام الأدائية" value={s.performance} max={max.performance} />
           </div>
           <div className="grade-row grade-row-total">
-            <GradeCell label="مجموع أعمال الفصل" value={s.classworkTotal} total />
+            <GradeCell label="مجموع أعمال الفصل" value={s.classworkTotal} max={max.classworkTotal} total />
           </div>
           <div className="grade-row grade-row-2">
-            <GradeCell label="القرآن الكريم" value={s.quran} />
-            <GradeCell label="الاختبارات" value={s.exams} />
+            <GradeCell label="القرآن الكريم" value={s.quran} max={max.quran} />
+            <GradeCell label="الاختبارات" value={s.exams} max={max.exams} />
           </div>
           <div className="grade-row grade-row-total">
-            <GradeCell label="مجموع القرآن والاختبارات" value={s.quranExamsTotal} total />
+            <GradeCell label="مجموع القرآن والاختبارات" value={s.quranExamsTotal} max={max.quranExamsTotal} total />
           </div>
         </div>
       </section>
@@ -145,12 +148,17 @@ export function ReportDocument({ report, school, issuedAt }: Props) {
   );
 }
 
-function GradeCell({ label, value, total }: { label: string; value: ScoreValue; total?: boolean }) {
+/** One grade with «من كم» and a light tint by its percentage of the maximum. */
+function GradeCell({ label, value, max, total }: { label: string; value: ScoreValue; max: number | null; total?: boolean }) {
   const recorded = isRecorded(value);
+  const band = scoreBand(value.num, max);
   return (
-    <div className={`grade-cell${total ? " is-total" : ""}`}>
+    <div className={`grade-cell${total ? " is-total" : ""}${band ? ` tint-${band}` : ""}`}>
       <span className="grade-label">{label}</span>
-      <span className={`grade-value num${recorded ? "" : " is-empty"}`}>{formatScore(value)}</span>
+      <span className={`grade-value num${recorded ? "" : " is-empty"}`}>
+        {formatScore(value)}
+        {max && value.num !== null && <span className="grade-max"> من {formatNumber(max)}</span>}
+      </span>
     </div>
   );
 }

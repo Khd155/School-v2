@@ -3,13 +3,13 @@ import { formatScore } from "../../shared/format";
 import { BandedScore, BandLegend, BulkBar, SelectAllHeader, SelectCell } from "./Bulk";
 import type { StudentListEntry } from "../../server/students";
 
-type Props = { students: StudentListEntry[]; q: string; classNo: number | null; maxBatch: number };
+type Props = { students: StudentListEntry[]; q: string; classNo: number | null; maxBatch: number; finalMax: number | null };
 
 /**
  * Searchable list of all students. Filtering is instant in the browser (admin.ts);
  * the same form also works without JavaScript via the query string.
  */
-export function StudentsContent({ students, q, classNo, maxBatch }: Props) {
+export function StudentsContent({ students, q, classNo, maxBatch, finalMax }: Props) {
   const classes = [...new Set(students.map((s) => s.classNo))].sort((a, b) => a - b);
   const query = q.trim().toLowerCase();
   const visible = (s: StudentListEntry) => (classNo === null || s.classNo === classNo) && (!query || s.name.toLowerCase().includes(query) || s.email.includes(query));
@@ -51,7 +51,7 @@ export function StudentsContent({ students, q, classNo, maxBatch }: Props) {
             <p class="hint" id="students-count" aria-live="polite" style="margin-bottom: var(--space-3)">
               {shown} من {students.length} طالبًا
             </p>
-            <BandLegend />
+            {finalMax !== null && <BandLegend />}
             <div class="table-wrap">
               <table class="table" data-bulk>
                 <thead>
@@ -74,7 +74,7 @@ export function StudentsContent({ students, q, classNo, maxBatch }: Props) {
                       <td class="num">{s.classNo}</td>
                       <td class="ltr nowrap">{s.email}</td>
                       <td class="num">
-                        <BandedScore value={s.finalTotal.num} text={formatScore(s.finalTotal)} />
+                        <BandedScore value={s.finalTotal.num} max={finalMax} text={formatScore(s.finalTotal)} />
                       </td>
                       <td style="text-align: end">
                         <a class="btn btn-secondary btn-sm" href={`/admin/report?${new URLSearchParams({ email: s.email, back: "/admin/students" })}`}>

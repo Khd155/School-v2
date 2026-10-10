@@ -17,6 +17,7 @@ export const SCORE_KEYS = [
 ] as const;
 export type ScoreKey = (typeof SCORE_KEYS)[number];
 export type Scores = Record<ScoreKey, ScoreValue>;
+export type ScoreMax = Record<ScoreKey, number | null>;
 
 export type RecitationStatus = "done" | "not_done" | "empty" | "unknown";
 export type Recitation = { status: RecitationStatus; raw?: string };
@@ -67,6 +68,8 @@ export type SchoolInfo = {
   footerText: string;
   /** When false, parents look up results with the school e-mail only. */
   requireAccessCode: boolean;
+  /** Maximum grade per item («من كم»); null when not set. */
+  scoreMax: ScoreMax;
   logos: { ministry: string | null; school: string | null };
 };
 

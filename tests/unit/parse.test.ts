@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import ExcelJS from "exceljs";
 import { computeClassStats, normalizeHeader, parseGrid, parseRecitation, parseScore } from "@/shared/import/parse";
 import { extractGrid, readCell, validateGrid } from "@/shared/import/grid";
-import { formatNumber, formatScore } from "@/shared/format";
+import { formatNumber, formatScore, scoreBand } from "@/shared/format";
 import { normalizeAccessCode } from "@/shared/access-code-format";
 
 const fixture = (name: string) => readFileSync(path.join(__dirname, "..", "fixtures", name));
@@ -158,4 +158,30 @@ describe("cell helpers", () => {
     expect(normalizeAccessCode("1234567")).toBeNull();
     expect(normalizeAccessCode("1234567a")).toBeNull();
   });
+
+  it("colours by percentage of the maximum", () => {
+    expect(scoreBand(90, 100)).toBe("a");
+    expect(scoreBand(9, 10)).toBe("a");
+    expect(scoreBand(13.5, 15)).toBe("a");
+    expect(scoreBand(89.99, 100)).toBe("b");
+    expect(scoreBand(30, 40)).toBe("b");
+    expect(scoreBand(12, 20)).toBe("c");
+    expect(scoreBand(0, 10)).toBe("d");
+    expect(scoreBand(50, null)).toBeNull();
+    expect(scoreBand(null, 100)).toBeNull();
+  });
 });
+
+describe("maximum grades", async () => {
+  it("warns when a grade exceeds its maximum, without changing it", async () => {
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(fixture("valid.xlsx") as never);
+    const r = parseGrid(extractGrid(wb), [4, 5, 6], { homework: 9, finalTotal: 100 } as never);
+    const over = r.issues.filter((i) => i.message.includes("أعلى من الدرجة العظمى"));
+    expect(over.length).toBeGreaterThan(0);
+    expect(over.every((i) => i.level === "warning")).toBe(true);
+    expect(r.issues.some((i) => i.message.includes("«الواجبات» = 10 أعلى من الدرجة العظمى (9)"))).toBe(true);
+    expect(r.students.some((st) => st.scores.homework.num === 10)).toBe(true);
+  });
+});
+

@@ -61,20 +61,21 @@ export function formatClassList(classes: number[]): string {
 }
 
 /**
- * Colour band for a final total in the teacher dashboard (thresholds chosen by
- * the teacher: 90+ green; the rest are visual groupings, not grades or pass/fail).
+ * Colour band by percentage of the maximum grade (thresholds chosen by the teacher:
+ * 90%+ green). Visual groupings only — not grades, ranks or pass/fail.
  */
 export type ScoreBand = "a" | "b" | "c" | "d";
 export const SCORE_BANDS: { band: ScoreBand; label: string }[] = [
-  { band: "a", label: "90 فأكثر" },
-  { band: "b", label: "75 – أقل من 90" },
-  { band: "c", label: "60 – أقل من 75" },
-  { band: "d", label: "أقل من 60" },
+  { band: "a", label: "90% فأكثر" },
+  { band: "b", label: "75% – أقل من 90%" },
+  { band: "c", label: "60% – أقل من 75%" },
+  { band: "d", label: "أقل من 60%" },
 ];
-export function scoreBand(value: number | null | undefined): ScoreBand | null {
-  if (value === null || value === undefined) return null;
-  if (value >= 90) return "a";
-  if (value >= 75) return "b";
-  if (value >= 60) return "c";
+export function scoreBand(value: number | null | undefined, max: number | null | undefined): ScoreBand | null {
+  if (value === null || value === undefined || !max) return null;
+  const pct = (value / max) * 100;
+  if (pct >= 90) return "a";
+  if (pct >= 75) return "b";
+  if (pct >= 60) return "c";
   return "d";
 }

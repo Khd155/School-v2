@@ -192,7 +192,7 @@ function findHeader(sheet: GridSheet): { row: number; map: Map<ColumnKey, number
  * Maps and validates a workbook already read into a cell grid (see grid.ts).
  * Runs on the server; the grid itself is untrusted input.
  */
-export function parseGrid(sheetsIn: GridSheet[], enabledClasses: number[]): ImportResult {
+export function parseGrid(sheetsIn: GridSheet[], enabledClasses: number[], scoreMax?: Partial<Record<ScoreKey, number | null>>): ImportResult {
   // Prefer a sheet named «الملخص العام», otherwise the first sheet with the expected headers.
   const target = normalizeHeader("الملخص العام");
   const sheets = [...sheetsIn].sort((a, b) => Number(normalizeHeader(b.name) === target) - Number(normalizeHeader(a.name) === target));
@@ -262,6 +262,11 @@ export function parseGrid(sheetsIn: GridSheet[], enabledClasses: number[]): Impo
       scores[key] = parseScore(at(row, key));
       if (scores[key].raw !== null) {
         issues.push({ level: "warning", row: r, message: `قيمة غير رقمية في «${SCORE_LABELS[key]}»: «${scores[key].raw}» — ستُعرض كما هي ولن تدخل في الحساب.` });
+      }
+      const max = scoreMax?.[key];
+      const num = scores[key].num;
+      if (max && num !== null && num > max + TOTAL_TOLERANCE) {
+        issues.push({ level: "warning", row: r, message: `«${SCORE_LABELS[key]}» = ${round(num)} أعلى من الدرجة العظمى (${max}). لم يُعدَّل شيء.` });
       }
     }
     if (scores.finalTotal.num === null && scores.finalTotal.raw === null) {

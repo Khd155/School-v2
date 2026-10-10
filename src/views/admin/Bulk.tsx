@@ -36,15 +36,15 @@ export function SelectCell({ email, name }: { email: string; name: string }) {
   );
 }
 
-/** Final total with its colour band. */
-export function BandedScore({ value, text }: { value: number | null; text: string }) {
-  const band = scoreBand(value);
+/** A grade coloured by its percentage of the maximum (uncoloured when no maximum is set). */
+export function BandedScore({ value, max, text }: { value: number | null; max: number | null; text: string }) {
+  const band = scoreBand(value, max);
   return <span class={band ? `score-band score-band-${band}` : "muted"}>{text}</span>;
 }
 
 export function BandLegend() {
   return (
-    <ul class="band-legend" aria-label="ألوان المجموع النهائي">
+    <ul class="band-legend" aria-label="ألوان الدرجات حسب النسبة من الدرجة العظمى">
       {SCORE_BANDS.map((b) => (
         <li>
           <span class={`band-dot score-band-${b.band}`} aria-hidden="true"></span>

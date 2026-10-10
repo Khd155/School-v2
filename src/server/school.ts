@@ -1,5 +1,5 @@
 import { nowIso } from "./env";
-import type { SchoolInfo } from "../shared/types";
+import { SCORE_KEYS, type SchoolInfo, type ScoreMax } from "../shared/types";
 
 export type LogoKind = "ministry" | "school";
 export const LOGO_KINDS: LogoKind[] = ["ministry", "school"];
@@ -16,6 +16,7 @@ type SettingsRow = {
   teacher_name: string;
   footer_text: string;
   require_access_code: number;
+  score_max: string;
 };
 
 function fromRow(row: SettingsRow): SchoolSettings {
@@ -30,6 +31,7 @@ function fromRow(row: SettingsRow): SchoolSettings {
     teacherName: row.teacher_name,
     footerText: row.footer_text,
     requireAccessCode: row.require_access_code === 1,
+    scoreMax: parseScoreMax(row.score_max),
   };
 }
 
@@ -75,6 +77,7 @@ const FIELD_LABELS: Record<keyof SchoolSettings, string> = {
   teacherName: "اسم المعلم",
   footerText: "نص التذييل",
   requireAccessCode: "طلب رمز الوصول",
+  scoreMax: "الدرجات العظمى",
 };
 
 export type LogoChange =
@@ -102,7 +105,7 @@ export async function updateSchoolSettings(db: D1Database, next: SchoolSettings,
       db
         .prepare(
           `UPDATE app_settings SET school_name = ?, education_office = ?, academic_year = ?, term = ?, subject = ?,
-             grade = ?, enabled_classes = ?, teacher_name = ?, footer_text = ?, require_access_code = ?, updated_at = ? WHERE id = 1`,
+             grade = ?, enabled_classes = ?, teacher_name = ?, footer_text = ?, require_access_code = ?, score_max = ?, updated_at = ? WHERE id = 1`,
         )
         .bind(
           next.schoolName,
@@ -115,6 +118,7 @@ export async function updateSchoolSettings(db: D1Database, next: SchoolSettings,
           next.teacherName,
           next.footerText,
           next.requireAccessCode ? 1 : 0,
+          JSON.stringify(next.scoreMax),
           now,
         ),
     );
@@ -141,4 +145,19 @@ export async function updateSchoolSettings(db: D1Database, next: SchoolSettings,
   statements.push(db.prepare("INSERT INTO settings_log (changed_at, summary) VALUES (?, ?)").bind(now, "تعديل: " + parts.join("، ")));
   await db.batch(statements);
   return true;
+}
+
+function parseScoreMax(raw: string): ScoreMax {
+  let obj: Record<string, unknown> = {};
+  try {
+    obj = JSON.parse(raw) ?? {};
+  } catch {
+    /* fall through to all-null */
+  }
+  const out = {} as ScoreMax;
+  for (const key of SCORE_KEYS) {
+    const v = obj[key];
+    out[key] = typeof v === "number" && Number.isFinite(v) && v > 0 ? v : null;
+  }
+  return out;
 }

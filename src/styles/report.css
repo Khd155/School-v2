@@ -264,3 +264,20 @@
 
 /* Several reports in one PDF: each starts on a new page. */
 .report-batch-item + .report-batch-item { break-before: page; }
+
+/* «من كم» and colour bands (percentage of the maximum).
+   Final total: clear colour on the number. Items: a light tint only. */
+.summary-max { font-size: var(--text-md); font-weight: var(--weight-medium); color: var(--color-text-muted); }
+.grade-max { font-size: var(--text-xs); font-weight: var(--weight-regular); color: var(--color-text-muted); }
+.summary-value.score-band-a { color: #166b3a; }
+.summary-value.score-band-b { color: var(--navy-700); }
+.summary-value.score-band-c { color: #8a5a00; }
+.summary-value.score-band-d { color: var(--danger-text); }
+.grade-cell.tint-a { background: #f3faf5; border-color: #d4eadb; }
+.grade-cell.tint-b { background: #f3f7fb; border-color: #d7e3ef; }
+.grade-cell.tint-c { background: #fdf9ef; border-color: #eee0bd; }
+.grade-cell.tint-d { background: #fdf4f3; border-color: #efd3cf; }
+@media print {
+  .summary-max { font-size: 13px; }
+  .grade-max { font-size: 10px; }
+}

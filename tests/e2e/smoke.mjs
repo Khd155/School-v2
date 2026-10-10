@@ -24,7 +24,8 @@ sql(`DELETE FROM students; DELETE FROM class_stats; UPDATE app_state SET active_
      DELETE FROM import_drafts; DELETE FROM access_codes; DELETE FROM admin_credentials; DELETE FROM admin_sessions; DELETE FROM rate_limits;
      DELETE FROM settings_log; DELETE FROM logos; DELETE FROM lookup_log;
      UPDATE app_settings SET school_name = 'مدرسة عبدالرحمن بن أبي بكر الابتدائية', education_office = '', academic_year = '', term = '',
-       subject = 'الدراسات الإسلامية', grade = 'السادس', enabled_classes = '[4,5,6]', teacher_name = '', footer_text = '', require_access_code = 1;`);
+       subject = 'الدراسات الإسلامية', grade = 'السادس', enabled_classes = '[4,5,6]', teacher_name = '', footer_text = '', require_access_code = 1,
+       score_max = '{"homework":15,"participation":15,"performance":10,"classworkTotal":40,"quran":20,"exams":40,"quranExamsTotal":60,"finalTotal":100}';`);
 
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH });
 const shot = async (page, name) => {
@@ -94,10 +95,10 @@ try {
   await admin.goto(`${BASE}/admin/grades`);
   const firstRank = await admin.locator("tbody tr").first().locator("td").allInnerTexts();
   assert.equal(firstRank[2].trim(), "محمد تجربة 2", "lowest final total first");
-  assert.equal(firstRank[5].trim(), "0", "zero is ranked, not skipped");
+  assert.equal(firstRank[5].trim(), "0 من 100", "zero is ranked, not skipped, with its maximum");
   assert.ok((await admin.locator("#grades-title").locator("xpath=..").innerText()).includes("2 غير مسجل"), "empty and text values counted separately");
   await admin.goto(`${BASE}/admin/grades?field=homework&class=5&order=desc&limit=all`);
-  const hw = (await admin.locator("tbody td.grade-cell-value").allInnerTexts()).map(Number);
+  const hw = (await admin.locator("tbody td.grade-cell-value").allInnerTexts()).map((t) => Number(t.split(" من ")[0]));
   assert.equal(hw.length, 8, "all 8 students of class 5");
   assert.deepEqual([...hw].sort((a, b) => b - a), hw, "sorted highest first");
   const below = await admin.evaluate(async () => (await fetch("/admin/grades.csv?field=finalTotal&below=60&limit=all")).text());
@@ -264,6 +265,12 @@ try {
   assert.deepEqual(classes, expected.map((t) => `recitation is-${t}`));
   const statusTexts = await parent.locator(".recitations-4 .recitation-status").allInnerTexts();
   assert.deepEqual(statusTexts.map((t) => t.trim()), expected.map((t) => ({ done: "تم", "not-done": "لم يتم", empty: "غير مسجل" })[t]));
+  // «من كم» and colour bands (student408: final 74 of 100 → 60–75% band).
+  assert.ok((await parent.locator(".summary-value").innerText()).replace(/\s+/g, " ").includes("74 من 100"), "final total shows «من 100»");
+  assert.match(await parent.locator(".summary-value").getAttribute("class"), /score-band-c/, "final total coloured by percentage");
+  const hwCell = parent.locator(".grade-row-3 .grade-cell").first();
+  assert.ok((await hwCell.innerText()).includes("من 15"), "homework shows «من 15»");
+  assert.match(await hwCell.getAttribute("class"), /tint-[abcd]/, "items get a light tint");
   step("report values, class stats, layout order and recitation states verified");
 
   // No horizontal overflow on mobile.

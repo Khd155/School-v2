@@ -19,7 +19,7 @@ import {
 } from "./server/auth";
 import { safeEqual, sha256Hex } from "./server/crypto";
 import { assertSecrets, type AppEnv } from "./server/env";
-import type { SchoolInfo, StudentReport } from "./shared/types";
+import { SCORE_KEYS, type SchoolInfo, type StudentReport } from "./shared/types";
 import { validateLogo } from "./server/images";
 import {
   allLookups,
@@ -300,7 +300,7 @@ app.get("/admin/students", (c) =>
     const students = await listStudents(c.env.DB);
     const cls = Number(c.req.query("class"));
     const classNo = students.some((s) => s.classNo === cls) ? cls : null;
-    return <StudentsContent students={students} q={(c.req.query("q") ?? "").slice(0, 100)} classNo={classNo} maxBatch={MAX_BATCH_REPORTS} />;
+    return <StudentsContent students={students} q={(c.req.query("q") ?? "").slice(0, 100)} classNo={classNo} maxBatch={MAX_BATCH_REPORTS} finalMax={(await getSchoolSettings(c.env.DB)).scoreMax.finalTotal} />;
   }),
 );
 
@@ -361,7 +361,7 @@ app.get("/admin/grades", (c) =>
     const classes = stats.map((s) => s.classNo);
     const query = parseGradeQuery(new URL(c.req.url).searchParams, classes);
     const result = await rankByGrade(c.env.DB, query);
-    return <GradesContent query={query} result={result} classes={classes} hasData={classes.length > 0} maxBatch={MAX_BATCH_REPORTS} />;
+    return <GradesContent query={query} result={result} classes={classes} hasData={classes.length > 0} maxBatch={MAX_BATCH_REPORTS} scoreMax={(await getSchoolSettings(c.env.DB)).scoreMax} />;
   }),
 );
 
@@ -498,7 +498,7 @@ admin.post("/import", async (c) => {
 
   try {
     const settings = await getSchoolSettings(c.env.DB);
-    const result = parseGrid(sheets, settings.enabledClasses);
+    const result = parseGrid(sheets, settings.enabledClasses, settings.scoreMax);
     const draftId = await saveDraft(c.env.DB, { ...result, filename, enabledClasses: settings.enabledClasses });
     return c.json({ draftId, html: String(<ImportPreview result={result} filename={filename} draftId={draftId} />) });
   } catch (err) {
@@ -565,7 +565,7 @@ admin.post("/codes", async (c) => {
   return c.json({ codes: targets.map((t) => ({ name: t.name, email: t.email, classNo: t.classNo, code: byEmail.get(t.email)! })) });
 });
 
-const TEXT_LIMITS: Record<Exclude<keyof SchoolSettings, "enabledClasses" | "requireAccessCode">, number> = {
+const TEXT_LIMITS: Record<Exclude<keyof SchoolSettings, "enabledClasses" | "requireAccessCode" | "scoreMax">, number> = {
   schoolName: 120,
   educationOffice: 160,
   academicYear: 40,
@@ -608,6 +608,20 @@ admin.post("/school", async (c) => {
   settings.enabledClasses = [...new Set(classes)].sort((a, b) => a - b);
   // Unchecked checkboxes are not submitted, so absence means "off".
   settings.requireAccessCode = form.get("requireAccessCode") === "1";
+
+  // Maximum grade per item: empty = not set; otherwise a positive number up to 1000.
+  settings.scoreMax = {} as SchoolSettings["scoreMax"];
+  for (const key of SCORE_KEYS) {
+    const raw = form.get(`max_${key}`);
+    const text = (typeof raw === "string" ? raw : "").trim().replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d))).replace("٫", ".");
+    if (!text) {
+      settings.scoreMax[key] = null;
+      continue;
+    }
+    const n = Number(text);
+    if (!Number.isFinite(n) || n <= 0 || n > 1000) errors[`max_${key}`] = "أدخل رقمًا أكبر من صفر.";
+    else settings.scoreMax[key] = n;
+  }
 
   const logoChanges: LogoChange[] = [];
   for (const kind of LOGO_KINDS) {
