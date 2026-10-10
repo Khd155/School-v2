@@ -220,3 +220,38 @@ export async function listStudents(db: D1Database): Promise<StudentListEntry[]> 
     .all<{ name: string; email: string; class_no: number; final_total: string }>();
   return results.map((r) => ({ name: r.name, email: r.email, classNo: r.class_no, finalTotal: JSON.parse(r.final_total) }));
 }
+
+/** Several students from the live data in one query, returned in the requested order. */
+export async function getStudentReports(db: D1Database, emails: string[]): Promise<StudentReport[]> {
+  if (emails.length === 0) return [];
+  const { results } = await db
+    .prepare(
+      `SELECT s.name, s.email, s.class_no, s.scores, s.quran, s.hadith, s.note,
+              cs.average, cs.highest, cs.counted, cs.total, st.data_updated_at
+       FROM app_state st
+       JOIN students s ON s.dataset_id = st.active_dataset_id
+       LEFT JOIN class_stats cs ON cs.dataset_id = s.dataset_id AND cs.class_no = s.class_no
+       WHERE st.id = 1 AND s.email IN (SELECT value FROM json_each(?))`,
+    )
+    .bind(JSON.stringify(emails))
+    .all<StatsRow & { name: string; email: string; scores: string; quran: string; hadith: string; note: string | null; data_updated_at: string | null }>();
+  const byEmail = new Map(
+    results.map((row) => [
+      row.email,
+      {
+        student: {
+          name: row.name,
+          email: row.email,
+          classNo: row.class_no,
+          scores: JSON.parse(row.scores),
+          quran: JSON.parse(row.quran),
+          hadith: JSON.parse(row.hadith),
+          note: row.note,
+        },
+        stats: row.counted === null ? null : statsFromRow(row),
+        dataUpdatedAt: row.data_updated_at,
+      } satisfies StudentReport,
+    ]),
+  );
+  return emails.map((e) => byEmail.get(e)).filter((r): r is StudentReport => !!r);
+}

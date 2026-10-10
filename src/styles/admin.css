@@ -250,3 +250,38 @@
   .grades-form-actions { grid-column: auto; }
   .grades-form-actions .btn { width: auto; }
 }
+
+/* Row selection + bulk export */
+.select-cell { width: 44px; text-align: center !important; }
+.select-cell input { width: 18px; height: 18px; margin: 0; accent-color: var(--color-action); cursor: pointer; vertical-align: middle; }
+.table tr:has(input[data-bulk-email]:checked) td { background: var(--petrol-50); }
+.bulk-bar {
+  position: sticky;
+  bottom: var(--space-3);
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+.bulk-count { font-size: var(--text-sm); color: var(--color-text-muted); }
+.bulk-count strong { color: var(--color-heading); }
+.bulk-message { flex-basis: 100%; }
+.bulk-message:empty { display: none; }
+
+/* Final-total colour bands (teacher dashboard only) */
+.score-band { font-weight: var(--weight-semibold); }
+.score-band-a { color: #166b3a; }
+.score-band-b { color: var(--navy-700); }
+.score-band-c { color: #8a5a00; }
+.score-band-d { color: var(--danger-text); }
+.band-legend { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); margin: 0 0 var(--space-3); padding: 0; list-style: none; font-size: var(--text-xs); color: var(--color-text-muted); }
+.band-legend li { display: inline-flex; align-items: center; gap: var(--space-2); }
+.band-dot { width: 10px; height: 10px; border-radius: 50%; background: currentColor; }

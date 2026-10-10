@@ -93,8 +93,8 @@ try {
   /* ---------- Grade analysis ---------- */
   await admin.goto(`${BASE}/admin/grades`);
   const firstRank = await admin.locator("tbody tr").first().locator("td").allInnerTexts();
-  assert.equal(firstRank[1].trim(), "محمد تجربة 2", "lowest final total first");
-  assert.equal(firstRank[4].trim(), "0", "zero is ranked, not skipped");
+  assert.equal(firstRank[2].trim(), "محمد تجربة 2", "lowest final total first");
+  assert.equal(firstRank[5].trim(), "0", "zero is ranked, not skipped");
   assert.ok((await admin.locator("#grades-title").locator("xpath=..").innerText()).includes("2 غير مسجل"), "empty and text values counted separately");
   await admin.goto(`${BASE}/admin/grades?field=homework&class=5&order=desc&limit=all`);
   const hw = (await admin.locator("tbody td.grade-cell-value").allInnerTexts()).map(Number);
@@ -136,6 +136,33 @@ try {
   await admin.waitForURL(/\/admin\/students\?q=/);
   assert.equal(await admin.inputValue("#students-q"), "تجربة 2", "back keeps the search");
   step("students search list filters instantly and opens reports");
+
+  /* ---------- Bulk selection + colour bands ---------- */
+  await admin.goto(`${BASE}/admin/students`);
+  assert.equal(await admin.locator("#bulk-export").isDisabled(), true, "export disabled with nothing selected");
+  await admin.check("[data-bulk-all]");
+  assert.ok((await admin.locator("#bulk-count").innerText()).includes("24"), "select all");
+  await admin.uncheck("[data-bulk-all]");
+  await admin.selectOption("#students-class", "5");
+  await admin.check("[data-bulk-all]");
+  assert.ok((await admin.locator("#bulk-count").innerText()).includes("8"), "select all = visible rows only");
+  assert.equal(await admin.locator("#bulk-export").isDisabled(), false);
+  const band = (email) => admin.locator(`tr[data-email="${email}"] .score-band`).getAttribute("class");
+  assert.match(await band("student502@test.school.example"), /score-band-a/, "99.999 → green band");
+  assert.match(await band("student402@test.school.example"), /score-band-d/, "0 → red band");
+  const api = (emails) =>
+    admin.evaluate(async (emails) => {
+      const csrf = document.querySelector('meta[name="csrf-token"]').content;
+      const r = await fetch("/api/admin/reports.pdf", { method: "POST", headers: { "content-type": "application/json", "x-csrf-token": csrf }, body: JSON.stringify({ emails }) });
+      return r.status;
+    }, emails);
+  assert.equal(await api([]), 400, "empty selection rejected");
+  assert.equal(await api(Array.from({ length: 101 }, (_, i) => `s${i}@test.school.example`)), 400, "over 100 rejected");
+  assert.equal(await api(["nobody@test.school.example"]), 404, "unknown students rejected");
+  const anonBatch = await fetch(`${BASE}/api/admin/reports.pdf`, { method: "POST", headers: { origin: BASE, "content-type": "application/json" }, body: '{"emails":["a@b.co"]}' });
+  assert.equal(anonBatch.status, 401, "needs a teacher session");
+  await shot(admin, "admin-students-bulk");
+  step("bulk selection (all / visible / limits) and final-total colour bands");
   step("grade analysis ranks by any grade, per class, with threshold and CSV");
 
   /* ---------- Access codes ---------- */

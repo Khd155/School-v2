@@ -1,11 +1,12 @@
 import { DownloadIcon } from "../icons";
+import { BandedScore, BandLegend, BulkBar, SelectAllHeader, SelectCell } from "./Bulk";
 import { PageHead } from "./AdminLayout";
 import { formatNumber } from "../../shared/format";
 import { SCORE_FIELDS, type GradeQuery, type GradeResult } from "../../server/analysis";
 
-type Props = { query: GradeQuery; result: GradeResult; classes: number[]; hasData: boolean };
+type Props = { query: GradeQuery; result: GradeResult; classes: number[]; hasData: boolean; maxBatch: number };
 
-export function GradesContent({ query, result, classes, hasData }: Props) {
+export function GradesContent({ query, result, classes, hasData, maxBatch }: Props) {
   const fieldLabel = SCORE_FIELDS.find((f) => f.key === query.field)!.label;
   const params = new URLSearchParams({
     field: query.field,
@@ -110,10 +111,13 @@ export function GradesContent({ query, result, classes, hasData }: Props) {
             {result.rows.length === 0 ? (
               <p class="hint">لا يوجد طلاب مطابقون لهذه الخيارات.</p>
             ) : (
+              <>
+              {query.field === "finalTotal" && <BandLegend />}
               <div class="table-wrap">
-                <table class="table">
+                <table class="table" data-bulk>
                   <thead>
                     <tr>
+                      <SelectAllHeader />
                       <th class="num">#</th>
                       <th>الطالب</th>
                       <th class="num">الفصل</th>
@@ -127,11 +131,14 @@ export function GradesContent({ query, result, classes, hasData }: Props) {
                   <tbody>
                     {result.rows.map((r, i) => (
                       <tr>
+                        <SelectCell email={r.email} name={r.name} />
                         <td class="num muted">{i + 1}</td>
                         <td class="nowrap">{r.name}</td>
                         <td class="num">{r.classNo}</td>
                         <td class="ltr nowrap">{r.email}</td>
-                        <td class="num grade-cell-value">{formatNumber(r.value)}</td>
+                        <td class="num grade-cell-value">
+                          {query.field === "finalTotal" ? <BandedScore value={r.value} text={formatNumber(r.value)} /> : formatNumber(r.value)}
+                        </td>
                         <td style="text-align: end">
                           <a class="btn btn-ghost btn-sm" href={`/admin/report?${new URLSearchParams({ email: r.email, back: `/admin/grades?${params.toString()}` })}`}>
                             التقرير
@@ -142,6 +149,8 @@ export function GradesContent({ query, result, classes, hasData }: Props) {
                   </tbody>
                 </table>
               </div>
+              <BulkBar max={maxBatch} />
+              </>
             )}
           </section>
         </>

@@ -397,3 +397,69 @@ if (studentsRoot) {
   // Enter should not reload the page when filtering already happened.
   search?.form?.addEventListener("submit", (e) => e.preventDefault());
 }
+
+/* ---------------- Select students → one combined PDF ---------------- */
+
+const bulkTable = $<HTMLTableElement>("table[data-bulk]");
+const bulkBar = $("#bulk-bar");
+if (bulkTable && bulkBar) {
+  const max = Number(bulkBar.dataset.max ?? 100);
+  const all = $<HTMLInputElement>("[data-bulk-all]", bulkTable)!;
+  const exportBtn = $<HTMLButtonElement>("#bulk-export", bulkBar)!;
+  const count = $("#bulk-count", bulkBar)!;
+  const message = $("#bulk-message", bulkBar);
+  const boxes = () => $$<HTMLInputElement>("input[data-bulk-email]", bulkTable);
+  const visible = (b: HTMLInputElement) => !b.closest("tr")!.hidden;
+
+  const refresh = () => {
+    const checked = boxes().filter((b) => b.checked).length;
+    const shown = boxes().filter(visible);
+    const shownChecked = shown.filter((b) => b.checked).length;
+    all.checked = shown.length > 0 && shownChecked === shown.length;
+    all.indeterminate = shownChecked > 0 && shownChecked < shown.length;
+    count.replaceChildren();
+    if (checked === 0) count.textContent = "لم يُحدَّد أي طالب";
+    else {
+      count.append("المحدد: ", Object.assign(document.createElement("strong"), { textContent: String(checked) }), checked === 1 ? " طالب" : " طالبًا");
+      if (checked > max) count.append(` — الحد الأقصى ${max} في الملف الواحد`);
+    }
+    exportBtn.disabled = checked === 0 || checked > max;
+  };
+
+  all.addEventListener("change", () => {
+    for (const b of boxes().filter(visible)) b.checked = all.checked;
+    refresh();
+  });
+  bulkTable.addEventListener("change", (e) => {
+    if ((e.target as HTMLElement).matches("input[data-bulk-email]")) refresh();
+  });
+  // Filtering on the students page changes which rows are visible.
+  for (const id of ["#students-q", "#students-class"]) $(id)?.addEventListener(id.endsWith("q") ? "input" : "change", refresh);
+
+  exportBtn.addEventListener("click", async () => {
+    const emails = boxes().filter((b) => b.checked).map((b) => b.dataset.bulkEmail!);
+    setBusy(exportBtn, true, `جارٍ تجهيز ${emails.length} تقرير…`);
+    showAlert(message, null);
+    try {
+      const res = await fetch("/api/admin/reports.pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-csrf-token": document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? "" },
+        body: JSON.stringify({ emails }),
+        credentials: "same-origin",
+      });
+      if (res.status === 401) return window.location.assign("/admin/login");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error((data as { message?: string }).message ?? "تعذّر إنشاء الملف الآن. حاول مرة أخرى بعد قليل.");
+      }
+      const header = res.headers.get("Content-Disposition")?.match(/filename\*=UTF-8''([^;]+)/i);
+      saveBlob(await res.blob(), header ? decodeURIComponent(header[1]) : "تقارير التحصيل.pdf");
+    } catch (err) {
+      showAlert(message, "error", undefined, err instanceof TypeError ? NETWORK_ERROR : (err as Error).message);
+    } finally {
+      setBusy(exportBtn, false);
+      refresh();
+    }
+  });
+  refresh();
+}

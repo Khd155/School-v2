@@ -1,14 +1,15 @@
 import { PageHead } from "./AdminLayout";
 import { formatScore } from "../../shared/format";
+import { BandedScore, BandLegend, BulkBar, SelectAllHeader, SelectCell } from "./Bulk";
 import type { StudentListEntry } from "../../server/students";
 
-type Props = { students: StudentListEntry[]; q: string; classNo: number | null };
+type Props = { students: StudentListEntry[]; q: string; classNo: number | null; maxBatch: number };
 
 /**
  * Searchable list of all students. Filtering is instant in the browser (admin.ts);
  * the same form also works without JavaScript via the query string.
  */
-export function StudentsContent({ students, q, classNo }: Props) {
+export function StudentsContent({ students, q, classNo, maxBatch }: Props) {
   const classes = [...new Set(students.map((s) => s.classNo))].sort((a, b) => a - b);
   const query = q.trim().toLowerCase();
   const visible = (s: StudentListEntry) => (classNo === null || s.classNo === classNo) && (!query || s.name.toLowerCase().includes(query) || s.email.includes(query));
@@ -50,10 +51,12 @@ export function StudentsContent({ students, q, classNo }: Props) {
             <p class="hint" id="students-count" aria-live="polite" style="margin-bottom: var(--space-3)">
               {shown} من {students.length} طالبًا
             </p>
+            <BandLegend />
             <div class="table-wrap">
-              <table class="table">
+              <table class="table" data-bulk>
                 <thead>
                   <tr>
+                    <SelectAllHeader />
                     <th>الطالب</th>
                     <th class="num">الفصل</th>
                     <th>البريد</th>
@@ -66,10 +69,13 @@ export function StudentsContent({ students, q, classNo }: Props) {
                 <tbody id="students-body">
                   {students.map((s) => (
                     <tr data-name={s.name.toLowerCase()} data-email={s.email} data-class={String(s.classNo)} hidden={!visible(s)}>
+                      <SelectCell email={s.email} name={s.name} />
                       <td class="nowrap">{s.name}</td>
                       <td class="num">{s.classNo}</td>
                       <td class="ltr nowrap">{s.email}</td>
-                      <td class="num">{formatScore(s.finalTotal)}</td>
+                      <td class="num">
+                        <BandedScore value={s.finalTotal.num} text={formatScore(s.finalTotal)} />
+                      </td>
                       <td style="text-align: end">
                         <a class="btn btn-secondary btn-sm" href={`/admin/report?${new URLSearchParams({ email: s.email, back: "/admin/students" })}`}>
                           التقرير
@@ -78,13 +84,14 @@ export function StudentsContent({ students, q, classNo }: Props) {
                     </tr>
                   ))}
                   <tr id="students-empty" hidden={shown > 0}>
-                    <td colspan={5} class="muted" style="text-align: center; padding: var(--space-6)">
+                    <td colspan={6} class="muted" style="text-align: center; padding: var(--space-6)">
                       لا يوجد طالب مطابق.
                     </td>
                   </tr>
                 </tbody>
               </table>
             </div>
+            <BulkBar max={maxBatch} />
           </>
         )}
       </section>

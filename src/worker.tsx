@@ -44,6 +44,7 @@ import {
   getCodeRoster,
   getDataState,
   getStudentReport,
+  getStudentReports,
   listStudents,
   KEPT_VERSIONS,
   listVersions,
@@ -65,6 +66,9 @@ import { LogContent, OUTCOME_LABELS } from "./views/admin/LogPage";
 import { SchoolContent } from "./views/admin/SchoolPage";
 
 const app = new Hono<AppEnv>();
+
+/** Most reports in one combined PDF (keeps Browser Rendering time and memory bounded). */
+const MAX_BATCH_REPORTS = 100;
 
 const CSP = [
   "default-src 'self'",
@@ -296,7 +300,7 @@ app.get("/admin/students", (c) =>
     const students = await listStudents(c.env.DB);
     const cls = Number(c.req.query("class"));
     const classNo = students.some((s) => s.classNo === cls) ? cls : null;
-    return <StudentsContent students={students} q={(c.req.query("q") ?? "").slice(0, 100)} classNo={classNo} />;
+    return <StudentsContent students={students} q={(c.req.query("q") ?? "").slice(0, 100)} classNo={classNo} maxBatch={MAX_BATCH_REPORTS} />;
   }),
 );
 
@@ -357,7 +361,7 @@ app.get("/admin/grades", (c) =>
     const classes = stats.map((s) => s.classNo);
     const query = parseGradeQuery(new URL(c.req.url).searchParams, classes);
     const result = await rankByGrade(c.env.DB, query);
-    return <GradesContent query={query} result={result} classes={classes} hasData={classes.length > 0} />;
+    return <GradesContent query={query} result={result} classes={classes} hasData={classes.length > 0} maxBatch={MAX_BATCH_REPORTS} />;
   }),
 );
 
@@ -622,6 +626,34 @@ admin.post("/school", async (c) => {
 
   const changed = await updateSchoolSettings(c.env.DB, settings, logoChanges);
   return c.json({ changed });
+});
+
+/** Selected students' reports as one PDF, one report per page, in the order selected. */
+admin.post("/reports.pdf", async (c) => {
+  const body = await c.req.json<{ emails?: unknown }>().catch(() => null);
+  const raw = Array.isArray(body?.emails) ? body.emails : [];
+  const emails = [...new Set(raw.filter((e): e is string => typeof e === "string").map(normalizeEmail))].filter(isValidEmail);
+  if (emails.length === 0) return c.json({ error: "invalid_request", message: "حدد طالبًا واحدًا على الأقل." }, 400);
+  if (emails.length > MAX_BATCH_REPORTS) {
+    return c.json({ error: "too_many", message: `الحد الأقصى ${MAX_BATCH_REPORTS} تقرير في الملف الواحد.` }, 400);
+  }
+  const [reports, school] = await Promise.all([getStudentReports(c.env.DB, emails), getSchoolInfo(c.env.DB)]);
+  if (reports.length === 0) return c.json({ error: "not_found", message: "لم يُعثر على الطلاب المحددين في البيانات المنشورة." }, 404);
+
+  const issuedAt = new Date();
+  const markup = reports.map((r) => `<div class="report-batch-item">${String(<ReportDocument report={r} school={school} issuedAt={issuedAt} />)}</div>`).join("");
+  try {
+    const pdf = await renderReportPdf(c.env, new URL(c.req.url).origin, markup, `تقارير الطلاب (${reports.length})`);
+    const filename = reports.length === 1 ? `تقرير التحصيل - ${reports[0].student.name}.pdf` : `تقارير التحصيل - ${reports.length} طالبًا.pdf`;
+    return c.body(pdf, 200, {
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `attachment; filename="reports.pdf"; filename*=UTF-8''${encodeURIComponent(filename)}`,
+      "X-Report-Count": String(reports.length),
+    });
+  } catch (err) {
+    console.error("batch pdf failed", err);
+    return c.json({ error: "pdf_failed", message: "تعذّر إنشاء الملف الآن. حاول مرة أخرى بعد قليل أو بعدد أقل." }, 500);
+  }
 });
 
 app.route("/api/admin", admin);

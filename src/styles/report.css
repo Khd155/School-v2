@@ -261,3 +261,6 @@
   .report-tz { margin-top: var(--space-1); }
   .report-footer-text { margin-top: var(--space-2); }
 }
+
+/* Several reports in one PDF: each starts on a new page. */
+.report-batch-item + .report-batch-item { break-before: page; }

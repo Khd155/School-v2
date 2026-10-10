@@ -20,8 +20,9 @@ export async function renderReportPdf(env: Env, origin: string, bodyHtml: string
       if (url.startsWith(`${origin}/`) || url.startsWith("data:")) void req.continue();
       else void req.abort();
     });
-    await page.setContent(html, { waitUntil: "networkidle0", timeout: 20_000 });
-    const pdf = await page.pdf({ format: "a4", printBackground: true, preferCSSPageSize: true });
+    // Generous timeout: a batch can hold up to 100 reports.
+    await page.setContent(html, { waitUntil: "networkidle0", timeout: 60_000 });
+    const pdf = await page.pdf({ format: "a4", printBackground: true, preferCSSPageSize: true, timeout: 120_000 });
     return new Uint8Array(pdf) as Uint8Array<ArrayBuffer>;
   } finally {
     await browser.close();
