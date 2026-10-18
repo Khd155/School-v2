@@ -1,12 +1,13 @@
+import type { PeriodKey } from "../../shared/periods";
 import { Alert } from "../Alert";
 import { DownloadIcon, PrintIcon } from "../icons";
 import { PageHead } from "./AdminLayout";
 import { formatDateRiyadh } from "../../shared/format";
 import type { CodeRosterEntry } from "../../server/students";
 
-type Props = { roster: CodeRosterEntry[]; siteUrl: string; schoolName: string; subject: string; grade: string; codesRequired: boolean };
+type Props = { roster: CodeRosterEntry[]; siteUrl: string; schoolName: string; subject: string; grade: string; codesRequired: boolean; periodKey: PeriodKey };
 
-export function CodesContent({ roster, siteUrl, schoolName, subject, grade, codesRequired }: Props) {
+export function CodesContent({ roster, siteUrl, schoolName, subject, grade, codesRequired, periodKey }: Props) {
   const missing = roster.filter((s) => !s.codeGeneratedAt).length;
   const classes = [...new Set(roster.map((s) => s.classNo))].sort((a, b) => a - b);
   return (
@@ -149,7 +150,7 @@ export function CodesContent({ roster, siteUrl, schoolName, subject, grade, code
                       {s.codeGeneratedAt ? <span class="muted">صدر في {formatDateRiyadh(s.codeGeneratedAt)}</span> : <span class="tag tag-missing">بلا رمز</span>}
                     </td>
                     <td style="text-align: end">
-                      <a class="btn btn-ghost btn-sm" href={`/admin/report?${new URLSearchParams({ email: s.email, back: "/admin/codes" })}`}>
+                      <a class="btn btn-ghost btn-sm" href={`/admin/report?${new URLSearchParams({ email: s.email, period: periodKey, back: "/admin/codes" })}`}>
                         التقرير
                       </a>
                       <button type="button" class="btn btn-secondary btn-sm" data-regenerate={s.codeGeneratedAt ? "1" : "0"}>

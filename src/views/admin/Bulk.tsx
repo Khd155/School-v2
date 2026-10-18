@@ -1,10 +1,11 @@
 import { DownloadIcon } from "../icons";
 import { SCORE_BANDS, scoreBand } from "../../shared/format";
+import type { PeriodKey } from "../../shared/periods";
 
 /** Selection bar for exporting several reports as one PDF (wired up in admin.ts). */
-export function BulkBar({ max }: { max: number }) {
+export function BulkBar({ max, period }: { max: number; period: PeriodKey }) {
   return (
-    <div class="bulk-bar" id="bulk-bar" data-max={String(max)}>
+    <div class="bulk-bar" id="bulk-bar" data-max={String(max)} data-period={period}>
       <p class="bulk-count" id="bulk-count" aria-live="polite">
         لم يُحدَّد أي طالب
       </p>

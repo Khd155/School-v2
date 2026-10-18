@@ -54,6 +54,31 @@
 .report-toolbar .alert { flex-basis: 100%; }
 .report-page-main { padding-top: var(--space-4); }
 
+/* Period switch for parents: one segmented row, the current period underlined. */
+.period-tabs {
+  display: flex;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin-bottom: var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+.period-tabs::-webkit-scrollbar { display: none; }
+.period-tabs a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-target);
+  padding: 0 var(--space-3);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.period-tabs a:hover { color: var(--color-heading); }
+.period-tabs a[aria-current="page"] { color: var(--color-action); border-bottom-color: var(--color-action); }
+
 @media (max-width: 479px) {
   .report-actions { width: 100%; }
   .report-actions .btn { flex: 1 1 0; padding: 0 var(--space-3); }

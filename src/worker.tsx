@@ -1,4 +1,5 @@
 import { Hono, type Context } from "hono";
+import { getCookie, setCookie } from "hono/cookie";
 import type { Child } from "hono/jsx";
 import { isValidEmail, normalizeAccessCode, normalizeEmail } from "./shared/access-code-format";
 import { formatDateTimeRiyadh, formatNumber } from "./shared/format";
@@ -18,6 +19,8 @@ import {
   verifyAdminPassword,
 } from "./server/auth";
 import { safeEqual, sha256Hex } from "./server/crypto";
+import { getPeriods, parseScoreMax, publishedPeriods, resolveWorkingPeriod, updatePeriod, type PeriodInfo } from "./server/periods";
+import { isPeriodKey, type PeriodKey } from "./shared/periods";
 import { assertSecrets, type AppEnv } from "./server/env";
 import { SCORE_KEYS, type SchoolInfo, type StudentReport } from "./shared/types";
 import { validateLogo } from "./server/images";
@@ -42,9 +45,9 @@ import {
   discardDraft,
   getActiveClassStats,
   getCodeRoster,
-  getDataState,
   getStudentReport,
   getStudentReports,
+  studentVisiblePeriods,
   listStudents,
   KEPT_VERSIONS,
   listVersions,
@@ -64,6 +67,7 @@ import { StudentsContent } from "./views/admin/StudentsPage";
 import { LoginPage } from "./views/admin/LoginPage";
 import { LogContent, OUTCOME_LABELS } from "./views/admin/LogPage";
 import { SchoolContent } from "./views/admin/SchoolPage";
+import { PeriodsContent } from "./views/admin/PeriodsPage";
 
 const app = new Hono<AppEnv>();
 
@@ -117,16 +121,30 @@ const clientIp = (c: Context<AppEnv>) => c.req.header("cf-connecting-ip") ?? "un
 /* ================================================================== */
 
 app.get("/", async (c) => {
-  const [school, state] = await Promise.all([getSchoolInfo(c.env.DB), getDataState(c.env.DB)]);
-  return page(c, <LookupPage school={school} published={state.activeDatasetId !== null} dataUpdatedAt={state.dataUpdatedAt} />);
+  const [school, periods] = await Promise.all([getSchoolInfo(c.env.DB), getPeriods(c.env.DB)]);
+  const published = publishedPeriods(periods);
+  return page(c, <LookupPage school={school} published={published.length > 0} dataUpdatedAt={published[0]?.dataUpdatedAt ?? null} />);
 });
+
+/**
+ * The parent's report for one visible period: the requested one if the student
+ * has a report there, otherwise the latest visible period. Hidden periods are never shown.
+ */
+async function parentReport(c: Context<AppEnv>, email: string) {
+  const visible = await studentVisiblePeriods(c.env.DB, email);
+  if (visible.length === 0) return null;
+  const requested = c.req.query("period");
+  const period = visible.find((k) => k === requested) ?? visible[0];
+  const report = await getStudentReport(c.env.DB, email, period);
+  return report ? { report, visible } : null;
+}
 
 app.get("/report", async (c) => {
   const email = await readReportSession(c);
   if (!email) return c.redirect("/", 303);
-  const [report, school] = await Promise.all([getStudentReport(c.env.DB, email), getSchoolInfo(c.env.DB)]);
-  if (!report) return c.redirect("/", 303);
-  return page(c, <ReportPage report={report} school={school} issuedAt={new Date()} />);
+  const [found, school] = await Promise.all([parentReport(c, email), getSchoolInfo(c.env.DB)]);
+  if (!found) return c.redirect("/", 303);
+  return page(c, <ReportPage report={found.report} school={school} issuedAt={new Date()} periods={found.visible} />);
 });
 
 app.get("/logo/:kind", async (c) => {
@@ -159,7 +177,7 @@ app.post("/api/lookup", async (c) => {
    * latency. For failed attempts the student label is resolved there too, so the
    * parent-facing response time does not depend on whether the e-mail exists.
    */
-  const log = (outcome: LookupOutcome, student?: { name: string; classNo: number } | null) =>
+  const log = (outcome: LookupOutcome, student?: { name: string; classNo: number } | null, period?: PeriodKey) =>
     c.executionCtx.waitUntil(
       (async () => {
         const label = student === undefined ? await findStudentLabel(c.env.DB, email) : null;
@@ -171,6 +189,7 @@ app.post("/api/lookup", async (c) => {
           outcome: finalOutcome,
           studentName: student?.name ?? label?.name ?? null,
           classNo: student?.classNo ?? label?.class_no ?? null,
+          period: period ?? null,
         });
       })().catch((err) => console.error("lookup log failed", err)),
     );
@@ -183,13 +202,13 @@ app.post("/api/lookup", async (c) => {
 
   const settings = await getSchoolSettings(c.env.DB);
   if (!settings.requireAccessCode) {
-    const report = await getStudentReport(c.env.DB, email);
-    if (!report) {
+    const found = await parentReport(c, email);
+    if (!found) {
       log("email_not_found", null);
       return jsonError(c, 404, "email_not_found");
     }
     await startReportSession(c, email, 0);
-    log("success", { name: report.student.name, classNo: report.student.classNo });
+    log("success", { name: found.report.student.name, classNo: found.report.student.classNo }, found.report.period);
     return c.json({ ok: true });
   }
 
@@ -211,13 +230,13 @@ app.post("/api/lookup", async (c) => {
   if (Math.random() < 0.02) c.executionCtx.waitUntil(pruneRateLimits(c.env.DB));
 
   // Identity is verified here, so it is safe to say there is no result.
-  const report = await getStudentReport(c.env.DB, email);
-  if (!report) {
+  const found = await parentReport(c, email);
+  if (!found) {
     log("no_result", null);
     return jsonError(c, 404, "no_result");
   }
   await startReportSession(c, email, version);
-  log("success", { name: report.student.name, classNo: report.student.classNo });
+  log("success", { name: found.report.student.name, classNo: found.report.student.classNo }, found.report.period);
   return c.json({ ok: true });
 });
 
@@ -230,9 +249,9 @@ app.post("/api/report/logout", (c) => {
 app.get("/api/report/pdf", async (c) => {
   const email = await readReportSession(c);
   if (!email) return jsonError(c, 401, "unauthorized");
-  const [report, school] = await Promise.all([getStudentReport(c.env.DB, email), getSchoolInfo(c.env.DB)]);
-  if (!report) return jsonError(c, 404, "no_result");
-  return pdfResponse(c, report, school);
+  const [found, school] = await Promise.all([parentReport(c, email), getSchoolInfo(c.env.DB)]);
+  if (!found) return jsonError(c, 404, "no_result");
+  return pdfResponse(c, found.report, school);
 });
 
 /** Renders one student's report as a PDF download (shared by the parent and teacher views). */
@@ -262,27 +281,60 @@ app.get("/admin/login", async (c) => {
   return page(c, <LoginPage schoolName={settings.schoolName} />);
 });
 
-async function adminPage(c: Context<AppEnv>, title: string, content: (settings: SchoolSettings) => Promise<Child> | Child, scripts: string[] = []) {
+const PERIOD_COOKIE = "admin_period";
+
+/** The period the teacher is working on (header selector), with all periods' info. */
+async function workingPeriod(c: Context<AppEnv>) {
+  const periods = await getPeriods(c.env.DB);
+  const key = resolveWorkingPeriod(periods, getCookie(c, PERIOD_COOKIE));
+  return { periods, period: periods.find((p) => p.key === key)! };
+}
+
+type AdminCtx = { settings: SchoolSettings; periods: PeriodInfo[]; period: PeriodInfo };
+
+async function adminPage(c: Context<AppEnv>, title: string, content: (ctx: AdminCtx) => Promise<Child> | Child, scripts: string[] = []) {
   const session = await getAdminSession(c);
   if (!session) return c.redirect("/admin/login", 303);
-  const settings = await getSchoolSettings(c.env.DB);
+  const [settings, wp] = await Promise.all([getSchoolSettings(c.env.DB), workingPeriod(c)]);
+  const url = new URL(c.req.url);
   return page(
     c,
-    <AdminLayout title={title} path={new URL(c.req.url).pathname} csrfToken={session.csrfToken} schoolName={settings.schoolName} subject={settings.subject} scripts={scripts}>
-      {await content(settings)}
+    <AdminLayout
+      title={title}
+      path={url.pathname}
+      currentUrl={url.pathname + url.search}
+      csrfToken={session.csrfToken}
+      schoolName={settings.schoolName}
+      subject={settings.subject}
+      periods={wp.periods}
+      period={wp.period.key}
+      scripts={scripts}
+    >
+      {await content({ settings, ...wp })}
     </AdminLayout>,
   );
 }
+
+/** Header period selector: remembers the choice and returns to the same page. */
+app.get("/admin/period", async (c) => {
+  if (!(await getAdminSession(c))) return c.redirect("/admin/login", 303);
+  const key = c.req.query("key");
+  const back = c.req.query("back") ?? "";
+  const target = /^\/admin(\/[\w-]*)?(\?[^\s]*)?$/.test(back) ? back.replace(/([?&])before=\d+&?/, "$1") : "/admin";
+  if (isPeriodKey(key)) setCookie(c, PERIOD_COOKIE, key, { httpOnly: true, secure: true, sameSite: "Strict", path: "/", maxAge: 365 * 86400 });
+  return c.redirect(target, 303);
+});
 
 app.get("/admin", (c) =>
   adminPage(
     c,
     "بيانات الطلاب",
-    async (settings) => {
-      const [state, stats, versions] = await Promise.all([getDataState(c.env.DB), getActiveClassStats(c.env.DB), listVersions(c.env.DB)]);
+    async ({ settings, period }) => {
+      const [stats, versions] = await Promise.all([getActiveClassStats(c.env.DB, period.key), listVersions(c.env.DB, period.key)]);
       return (
         <DataContent
-          dataUpdatedAt={state.dataUpdatedAt}
+          period={period}
+          dataUpdatedAt={period.dataUpdatedAt}
           stats={stats}
           versions={versions}
           enabledClasses={settings.enabledClasses}
@@ -296,19 +348,20 @@ app.get("/admin", (c) =>
 );
 
 app.get("/admin/students", (c) =>
-  adminPage(c, "الطلاب", async () => {
-    const students = await listStudents(c.env.DB);
+  adminPage(c, "الطلاب", async ({ period }) => {
+    const students = await listStudents(c.env.DB, period.key);
     const cls = Number(c.req.query("class"));
     const classNo = students.some((s) => s.classNo === cls) ? cls : null;
-    return <StudentsContent students={students} q={(c.req.query("q") ?? "").slice(0, 100)} classNo={classNo} maxBatch={MAX_BATCH_REPORTS} finalMax={(await getSchoolSettings(c.env.DB)).scoreMax.finalTotal} />;
+    return <StudentsContent students={students} q={(c.req.query("q") ?? "").slice(0, 100)} classNo={classNo} maxBatch={MAX_BATCH_REPORTS} finalMax={period.scoreMax.finalTotal} periodKey={period.key} />;
   }),
 );
 
 app.get("/admin/codes", (c) =>
-  adminPage(c, "رموز الوصول", async (settings) => {
-    const roster = await getCodeRoster(c.env.DB);
+  adminPage(c, "رموز الوصول", async ({ settings, period }) => {
+    const roster = await getCodeRoster(c.env.DB, period.key);
     return (
       <CodesContent
+        periodKey={period.key}
         roster={roster}
         siteUrl={new URL(c.req.url).origin}
         schoolName={settings.schoolName}
@@ -321,25 +374,27 @@ app.get("/admin/codes", (c) =>
 );
 
 app.get("/admin/school", (c) =>
-  adminPage(c, "معلومات المدرسة", async (settings) => {
+  adminPage(c, "معلومات المدرسة", async ({ settings }) => {
     const [info, log] = await Promise.all([getSchoolInfo(c.env.DB), getSettingsLog(c.env.DB)]);
     return <SchoolContent settings={settings} logos={info.logos} log={log} />;
   }),
 );
 
 app.get("/admin/log", (c) =>
-  adminPage(c, "سجل البحث", async () => {
+  adminPage(c, "سجل البحث", async ({ period }) => {
     const outcomeParam = c.req.query("outcome") ?? "";
     const filter: LogFilter = {
       q: (c.req.query("q") ?? "").trim().slice(0, 100),
       outcome: outcomeParam in OUTCOME_LABELS ? (outcomeParam as LookupOutcome) : "",
       before: Number.isSafeInteger(Number(c.req.query("before"))) && Number(c.req.query("before")) > 0 ? Number(c.req.query("before")) : null,
     };
-    const [{ entries, hasMore }, summary, roster] = await Promise.all([listLookups(c.env.DB, filter), lookupSummary(c.env.DB), getDataState(c.env.DB)]);
-    const totalStudents = roster.activeDatasetId
-      ? ((await c.env.DB.prepare("SELECT student_count FROM datasets WHERE id = ?").bind(roster.activeDatasetId).first<{ student_count: number }>())?.student_count ?? 0)
-      : 0;
-    const [coverage, daily] = await Promise.all([coverageByClass(c.env.DB), dailyActivity(c.env.DB)]);
+    const [{ entries, hasMore }, summary, coverage, daily] = await Promise.all([
+      listLookups(c.env.DB, filter),
+      lookupSummary(c.env.DB),
+      coverageByClass(c.env.DB, period.key),
+      dailyActivity(c.env.DB),
+    ]);
+    const totalStudents = period.studentCount ?? 0;
     return (
       <LogContent
         entries={entries}
@@ -350,26 +405,30 @@ app.get("/admin/log", (c) =>
         keptRows={LOOKUP_LOG_KEPT}
         coverage={coverage}
         daily={daily}
+        periodLabel={period.label}
       />
     );
   }),
 );
 
 app.get("/admin/grades", (c) =>
-  adminPage(c, "تحليل الدرجات", async () => {
-    const stats = await getActiveClassStats(c.env.DB);
+  adminPage(c, "تحليل الدرجات", async ({ period }) => {
+    const stats = await getActiveClassStats(c.env.DB, period.key);
     const classes = stats.map((s) => s.classNo);
     const query = parseGradeQuery(new URL(c.req.url).searchParams, classes);
-    const result = await rankByGrade(c.env.DB, query);
-    return <GradesContent query={query} result={result} classes={classes} hasData={classes.length > 0} maxBatch={MAX_BATCH_REPORTS} scoreMax={(await getSchoolSettings(c.env.DB)).scoreMax} />;
+    const result = await rankByGrade(c.env.DB, query, period.key);
+    return (
+      <GradesContent query={query} result={result} classes={classes} hasData={classes.length > 0} maxBatch={MAX_BATCH_REPORTS} scoreMax={period.scoreMax} periodKey={period.key} />
+    );
   }),
 );
 
 app.get("/admin/grades.csv", async (c) => {
   if (!(await getAdminSession(c))) return c.redirect("/admin/login", 303);
-  const classes = (await getActiveClassStats(c.env.DB)).map((s) => s.classNo);
+  const { period } = await workingPeriod(c);
+  const classes = (await getActiveClassStats(c.env.DB, period.key)).map((s) => s.classNo);
   const query = parseGradeQuery(new URL(c.req.url).searchParams, classes);
-  const { rows } = await rankByGrade(c.env.DB, query);
+  const { rows } = await rankByGrade(c.env.DB, query, period.key);
   const label = SCORE_FIELDS.find((f) => f.key === query.field)!.label;
   const lines = [
     ["#", "الطالب", "الفصل", "البريد", label].map(csvCell).join(","),
@@ -398,11 +457,13 @@ app.get("/admin/report", async (c) => {
   const backParam = c.req.query("back") ?? "";
   // Only same-site dashboard paths, never an external URL.
   const backHref = /^\/admin(\/[\w-]*)?(\?[^\s]*)?$/.test(backParam) ? backParam : "/admin/grades";
-  const [report, school] = isValidEmail(email) ? await Promise.all([getStudentReport(c.env.DB, email), getSchoolInfo(c.env.DB)]) : [null, null];
+  const requested = c.req.query("period");
+  const period = isPeriodKey(requested) ? requested : (await workingPeriod(c)).period.key;
+  const [report, school] = isValidEmail(email) ? await Promise.all([getStudentReport(c.env.DB, email, period), getSchoolInfo(c.env.DB)]) : [null, null];
   if (!report || !school) {
-    return page(c, <ErrorPage title="الطالب غير موجود" message="لا يوجد طالب بهذا البريد في البيانات المنشورة حاليًا." />, 404);
+    return page(c, <ErrorPage title="الطالب غير موجود" message="لا يوجد طالب بهذا البريد في بيانات هذه الفترة." />, 404);
   }
-  const pdfUrl = `/admin/report.pdf?${new URLSearchParams({ email })}`;
+  const pdfUrl = `/admin/report.pdf?${new URLSearchParams({ email, period })}`;
   return page(c, <ReportPage report={report} school={school} issuedAt={new Date()} mode={{ kind: "teacher", backHref, pdfUrl }} />);
 });
 
@@ -410,7 +471,9 @@ app.get("/admin/report.pdf", async (c) => {
   if (!(await getAdminSession(c))) return jsonError(c, 401, "unauthorized");
   const email = normalizeEmail(c.req.query("email") ?? "");
   if (!isValidEmail(email)) return jsonError(c, 400, "invalid_request");
-  const [report, school] = await Promise.all([getStudentReport(c.env.DB, email), getSchoolInfo(c.env.DB)]);
+  const requested = c.req.query("period");
+  const period = isPeriodKey(requested) ? requested : (await workingPeriod(c)).period.key;
+  const [report, school] = await Promise.all([getStudentReport(c.env.DB, email, period), getSchoolInfo(c.env.DB)]);
   if (!report) return jsonError(c, 404, "no_result");
   return pdfResponse(c, report, school);
 });
@@ -434,6 +497,10 @@ app.get("/admin/log.csv", async (c) => {
     "Content-Disposition": `attachment; filename="search-log.csv"; filename*=UTF-8''${encodeURIComponent(`سجل البحث - ${date}.csv`)}`,
   });
 });
+
+app.get("/admin/periods", (c) =>
+  adminPage(c, "الفترات", ({ periods }) => <PeriodsContent periods={periods} flash={c.req.query("saved") ?? null} />),
+);
 
 app.get("/admin/account", (c) => adminPage(c, "الحساب", () => <AccountContent />));
 
@@ -490,16 +557,20 @@ const MAX_IMPORT_BODY = 3 * 1024 * 1024;
 /** Receives the grid read in the browser, validates it as untrusted input, stores a draft, returns preview HTML. */
 admin.post("/import", async (c) => {
   if (Number(c.req.header("content-length") ?? 0) > MAX_IMPORT_BODY) return c.json({ error: "too_large", message: "حجم البيانات كبير جدًا." }, 413);
-  const body = await c.req.json<{ filename?: unknown; sheets?: unknown }>().catch(() => null);
+  const body = await c.req.json<{ filename?: unknown; sheets?: unknown; period?: unknown }>().catch(() => null);
+  // The target period is sent explicitly by the upload form (shown to the teacher there).
+  if (!isPeriodKey(body?.period)) return c.json({ error: "invalid_request", message: "حدد الفترة." }, 400);
+  const period = body.period;
   const filename = typeof body?.filename === "string" && /\.xlsx$/i.test(body.filename) ? body.filename.slice(0, 200) : null;
   if (!filename) return c.json({ error: "bad_type", message: "الملف يجب أن يكون بصيغة ‎.xlsx‎." }, 400);
   const sheets = validateGrid(body?.sheets);
   if (!sheets) return c.json({ error: "invalid_grid", message: "تعذّرت قراءة محتوى الملف." }, 400);
 
   try {
-    const settings = await getSchoolSettings(c.env.DB);
-    const result = parseGrid(sheets, settings.enabledClasses, settings.scoreMax);
-    const draftId = await saveDraft(c.env.DB, { ...result, filename, enabledClasses: settings.enabledClasses });
+    const [settings, periods] = await Promise.all([getSchoolSettings(c.env.DB), getPeriods(c.env.DB)]);
+    const target = periods.find((p) => p.key === period)!;
+    const result = parseGrid(sheets, settings.enabledClasses, target.scoreMax);
+    const draftId = await saveDraft(c.env.DB, { ...result, filename, enabledClasses: settings.enabledClasses, period });
     return c.json({ draftId, html: String(<ImportPreview result={result} filename={filename} draftId={draftId} />) });
   } catch (err) {
     if (err instanceof ImportFileError) return c.json({ error: "parse_failed", message: err.message }, 400);
@@ -550,7 +621,9 @@ admin.post("/versions/restore", async (c) => {
  */
 admin.post("/codes", async (c) => {
   const body = await c.req.json<{ mode?: unknown; email?: unknown }>().catch(() => null);
-  const roster = await getCodeRoster(c.env.DB);
+  // Codes are per student e-mail; the roster comes from the period the teacher is working on.
+  const { period } = await workingPeriod(c);
+  const roster = await getCodeRoster(c.env.DB, period.key);
   let targets: typeof roster;
   if (body?.mode === "missing") targets = roster.filter((s) => !s.codeGeneratedAt);
   else if (body?.mode === "all") targets = roster;
@@ -565,11 +638,10 @@ admin.post("/codes", async (c) => {
   return c.json({ codes: targets.map((t) => ({ name: t.name, email: t.email, classNo: t.classNo, code: byEmail.get(t.email)! })) });
 });
 
-const TEXT_LIMITS: Record<Exclude<keyof SchoolSettings, "enabledClasses" | "requireAccessCode" | "scoreMax">, number> = {
+const TEXT_LIMITS: Record<Exclude<keyof SchoolSettings, "enabledClasses" | "requireAccessCode" | "term">, number> = {
   schoolName: 120,
   educationOffice: 160,
   academicYear: 40,
-  term: 60,
   subject: 80,
   grade: 40,
   teacherName: 80,
@@ -608,20 +680,8 @@ admin.post("/school", async (c) => {
   settings.enabledClasses = [...new Set(classes)].sort((a, b) => a - b);
   // Unchecked checkboxes are not submitted, so absence means "off".
   settings.requireAccessCode = form.get("requireAccessCode") === "1";
-
-  // Maximum grade per item: empty = not set; otherwise a positive number up to 1000.
-  settings.scoreMax = {} as SchoolSettings["scoreMax"];
-  for (const key of SCORE_KEYS) {
-    const raw = form.get(`max_${key}`);
-    const text = (typeof raw === "string" ? raw : "").trim().replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d))).replace("٫", ".");
-    if (!text) {
-      settings.scoreMax[key] = null;
-      continue;
-    }
-    const n = Number(text);
-    if (!Number.isFinite(n) || n <= 0 || n > 1000) errors[`max_${key}`] = "أدخل رقمًا أكبر من صفر.";
-    else settings.scoreMax[key] = n;
-  }
+  // The term is now shown per period; the stored value is kept untouched.
+  settings.term = (await getSchoolSettings(c.env.DB)).term;
 
   const logoChanges: LogoChange[] = [];
   for (const kind of LOGO_KINDS) {
@@ -644,15 +704,17 @@ admin.post("/school", async (c) => {
 
 /** Selected students' reports as one PDF, one report per page, in the order selected. */
 admin.post("/reports.pdf", async (c) => {
-  const body = await c.req.json<{ emails?: unknown }>().catch(() => null);
+  const body = await c.req.json<{ emails?: unknown; period?: unknown }>().catch(() => null);
+  if (!isPeriodKey(body?.period)) return c.json({ error: "invalid_request", message: "حدد الفترة." }, 400);
+  const period = body.period;
   const raw = Array.isArray(body?.emails) ? body.emails : [];
   const emails = [...new Set(raw.filter((e): e is string => typeof e === "string").map(normalizeEmail))].filter(isValidEmail);
   if (emails.length === 0) return c.json({ error: "invalid_request", message: "حدد طالبًا واحدًا على الأقل." }, 400);
   if (emails.length > MAX_BATCH_REPORTS) {
     return c.json({ error: "too_many", message: `الحد الأقصى ${MAX_BATCH_REPORTS} تقرير في الملف الواحد.` }, 400);
   }
-  const [reports, school] = await Promise.all([getStudentReports(c.env.DB, emails), getSchoolInfo(c.env.DB)]);
-  if (reports.length === 0) return c.json({ error: "not_found", message: "لم يُعثر على الطلاب المحددين في البيانات المنشورة." }, 404);
+  const [reports, school] = await Promise.all([getStudentReports(c.env.DB, emails, period), getSchoolInfo(c.env.DB)]);
+  if (reports.length === 0) return c.json({ error: "not_found", message: "لم يُعثر على الطلاب المحددين في بيانات هذه الفترة." }, 404);
 
   const issuedAt = new Date();
   const markup = reports.map((r) => `<div class="report-batch-item">${String(<ReportDocument report={r} school={school} issuedAt={issuedAt} />)}</div>`).join("");
@@ -668,6 +730,26 @@ admin.post("/reports.pdf", async (c) => {
     console.error("batch pdf failed", err);
     return c.json({ error: "pdf_failed", message: "تعذّر إنشاء الملف الآن. حاول مرة أخرى بعد قليل أو بعدد أقل." }, 500);
   }
+});
+
+/** One period's parent visibility and maximum grades. */
+admin.post("/periods", async (c) => {
+  const form = await c.req.formData().catch(() => null);
+  const key = form?.get("key");
+  if (!form || !isPeriodKey(key)) return c.json({ error: "invalid_request" }, 400);
+  const errors: Record<string, string> = {};
+  const scoreMax = parseScoreMax("{}");
+  for (const field of SCORE_KEYS) {
+    const raw = form.get(`max_${field}`);
+    const text = (typeof raw === "string" ? raw : "").trim().replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d))).replace("٫", ".");
+    if (!text) continue; // empty = not set
+    const n = Number(text);
+    if (!Number.isFinite(n) || n <= 0 || n > 1000) errors[`max_${field}`] = "أدخل رقمًا أكبر من صفر.";
+    else scoreMax[field] = n;
+  }
+  if (Object.keys(errors).length) return c.json({ error: "validation", errors, message: "تحقق من الحقول المشار إليها." }, 400);
+  const changed = await updatePeriod(c.env.DB, key, form.get("visible") === "1", scoreMax);
+  return c.json({ changed });
 });
 
 app.route("/api/admin", admin);

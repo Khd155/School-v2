@@ -2,14 +2,15 @@ import { PageHead } from "./AdminLayout";
 import { formatScore } from "../../shared/format";
 import { BandedScore, BandLegend, BulkBar, SelectAllHeader, SelectCell } from "./Bulk";
 import type { StudentListEntry } from "../../server/students";
+import type { PeriodKey } from "../../shared/periods";
 
-type Props = { students: StudentListEntry[]; q: string; classNo: number | null; maxBatch: number; finalMax: number | null };
+type Props = { students: StudentListEntry[]; q: string; classNo: number | null; maxBatch: number; finalMax: number | null; periodKey: PeriodKey };
 
 /**
  * Searchable list of all students. Filtering is instant in the browser (admin.ts);
  * the same form also works without JavaScript via the query string.
  */
-export function StudentsContent({ students, q, classNo, maxBatch, finalMax }: Props) {
+export function StudentsContent({ students, q, classNo, maxBatch, finalMax, periodKey }: Props) {
   const classes = [...new Set(students.map((s) => s.classNo))].sort((a, b) => a - b);
   const query = q.trim().toLowerCase();
   const visible = (s: StudentListEntry) => (classNo === null || s.classNo === classNo) && (!query || s.name.toLowerCase().includes(query) || s.email.includes(query));
@@ -23,7 +24,7 @@ export function StudentsContent({ students, q, classNo, maxBatch, finalMax }: Pr
           قائمة الطلاب
         </h2>
         {students.length === 0 ? (
-          <p class="hint">اعتمد بيانات الطلاب أولًا من صفحة «بيانات الطلاب».</p>
+          <p class="hint">لا توجد بيانات معتمدة لهذه الفترة. اعتمدها من صفحة «بيانات الطلاب».</p>
         ) : (
           <>
             <form class="filters" method="get" action="/admin/students" role="search">
@@ -77,7 +78,7 @@ export function StudentsContent({ students, q, classNo, maxBatch, finalMax }: Pr
                         <BandedScore value={s.finalTotal.num} max={finalMax} text={formatScore(s.finalTotal)} />
                       </td>
                       <td style="text-align: end">
-                        <a class="btn btn-secondary btn-sm" href={`/admin/report?${new URLSearchParams({ email: s.email, back: "/admin/students" })}`}>
+                        <a class="btn btn-secondary btn-sm" href={`/admin/report?${new URLSearchParams({ email: s.email, period: periodKey, back: "/admin/students" })}`}>
                           التقرير
                         </a>
                       </td>
@@ -91,7 +92,7 @@ export function StudentsContent({ students, q, classNo, maxBatch, finalMax }: Pr
                 </tbody>
               </table>
             </div>
-            <BulkBar max={maxBatch} />
+            <BulkBar max={maxBatch} period={periodKey} />
           </>
         )}
       </section>

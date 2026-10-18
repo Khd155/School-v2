@@ -1,4 +1,5 @@
 import { nowIso } from "./env";
+import type { PeriodKey } from "../shared/periods";
 
 export type LookupOutcome = "success" | "email_not_found" | "wrong_code" | "no_result" | "rate_limited";
 export const LOOKUP_LOG_KEPT = 5000;
@@ -15,12 +16,12 @@ export type LookupLogEntry = {
 /** Records one attempt. Callers run it via waitUntil so the parent's response is not delayed. */
 export async function recordLookup(
   db: D1Database,
-  entry: { email: string; outcome: LookupOutcome; studentName?: string | null; classNo?: number | null },
+  entry: { email: string; outcome: LookupOutcome; studentName?: string | null; classNo?: number | null; period?: PeriodKey | null },
 ): Promise<void> {
   const statements = [
     db
-      .prepare("INSERT INTO lookup_log (created_at, email, outcome, student_name, class_no) VALUES (?, ?, ?, ?, ?)")
-      .bind(nowIso(), entry.email.slice(0, 254), entry.outcome, entry.studentName ?? null, entry.classNo ?? null),
+      .prepare("INSERT INTO lookup_log (created_at, email, outcome, student_name, class_no, period) VALUES (?, ?, ?, ?, ?, ?)")
+      .bind(nowIso(), entry.email.slice(0, 254), entry.outcome, entry.studentName ?? null, entry.classNo ?? null, entry.period ?? null),
   ];
   // Occasional pruning keeps the table bounded even under a flood of attempts.
   if (Math.random() < 0.05) {
@@ -33,10 +34,11 @@ export async function recordLookup(
 
 /** Student name/class in the live data, used to label failed attempts for the teacher. */
 export async function findStudentLabel(db: D1Database, email: string) {
+  // Any period with data, latest first (labels only; never shown to parents).
   return db
     .prepare(
-      `SELECT s.name, s.class_no FROM app_state st JOIN students s ON s.dataset_id = st.active_dataset_id
-       WHERE st.id = 1 AND s.email = ?`,
+      `SELECT s.name, s.class_no FROM periods p JOIN students s ON s.dataset_id = p.active_dataset_id
+       WHERE s.email = ? ORDER BY p.sort DESC LIMIT 1`,
     )
     .bind(email)
     .first<{ name: string; class_no: number }>();
@@ -98,16 +100,18 @@ export async function lookupSummary(db: D1Database) {
 export type ClassCoverage = { classNo: number; total: number; viewed: number };
 
 /** Per class in the live data: how many students' reports were opened at least once (within the kept log). */
-export async function coverageByClass(db: D1Database): Promise<ClassCoverage[]> {
+/** Per class in one period: students whose report for that period was opened at least once. */
+export async function coverageByClass(db: D1Database, period: PeriodKey): Promise<ClassCoverage[]> {
   const { results } = await db
     .prepare(
       `SELECT s.class_no, COUNT(*) AS total, COUNT(v.email) AS viewed
-       FROM app_state st
-       JOIN students s ON s.dataset_id = st.active_dataset_id
-       LEFT JOIN (SELECT DISTINCT email FROM lookup_log WHERE outcome = 'success') v ON v.email = s.email
-       WHERE st.id = 1
+       FROM periods p
+       JOIN students s ON s.dataset_id = p.active_dataset_id
+       LEFT JOIN (SELECT DISTINCT email FROM lookup_log WHERE outcome = 'success' AND period = ?1) v ON v.email = s.email
+       WHERE p.key = ?1
        GROUP BY s.class_no ORDER BY s.class_no`,
     )
+    .bind(period)
     .all<{ class_no: number; total: number; viewed: number }>();
   return results.map((r) => ({ classNo: r.class_no, total: r.total, viewed: r.viewed }));
 }

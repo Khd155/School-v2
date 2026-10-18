@@ -54,7 +54,7 @@ upload.addEventListener("click", async () => {
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(bytes.buffer);
     const sheets = extractGrid(workbook);
-    const res = await adminPost<{ draftId: string; html: string }>("/api/admin/import", { filename: file.name, sheets });
+    const res = await adminPost<{ draftId: string; html: string }>("/api/admin/import", { filename: file.name, sheets, period: upload.dataset.period });
     if (!res.ok) {
       showAlert(message, "error", undefined, res.status === 0 ? NETWORK_ERROR : res.data.message ?? "تعذّرت معالجة الملف.");
       return;
@@ -95,7 +95,7 @@ function bindPreview() {
     confirmAction({
       title: "اعتماد البيانات الجديدة؟",
       body: current
-        ? `ستحل بيانات ${count} طالبًا محل البيانات المنشورة حاليًا (${current} طالبًا). يُحفظ الإصدار الحالي ويمكن استرجاعه لاحقًا.`
+        ? `ستحل بيانات ${count} طالبًا محل البيانات المعتمدة حاليًا لهذه الفترة (${current} طالبًا). يُحفظ الإصدار الحالي ويمكن استرجاعه لاحقًا.`
         : `ستُنشر بيانات ${count} طالبًا لأولياء الأمور.`,
       confirmLabel: "اعتماد ونشر",
       action: async () => {

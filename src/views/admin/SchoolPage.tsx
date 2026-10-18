@@ -1,12 +1,11 @@
 import { PageHead } from "./AdminLayout";
-import { SCORE_FIELDS } from "../../server/analysis";
 import { formatDateTimeRiyadh } from "../../shared/format";
 import type { SchoolInfo } from "../../shared/types";
 
 type Settings = Omit<SchoolInfo, "logos">;
 type Props = { settings: Settings; logos: SchoolInfo["logos"]; log: { changedAt: string; summary: string }[] };
 
-type TextKey = Exclude<keyof Settings, "enabledClasses" | "footerText" | "requireAccessCode" | "scoreMax">;
+type TextKey = Exclude<keyof Settings, "enabledClasses" | "footerText" | "requireAccessCode">;
 
 function TextField({ name, label, value, required, hint, span, max }: { name: TextKey; label: string; value: string; required?: boolean; hint?: string; span?: boolean; max: number }) {
   return (
@@ -73,11 +72,10 @@ export function SchoolContent({ settings, logos, log }: Props) {
 
         <section class="panel admin-section" aria-labelledby="sec-term">
           <div class="admin-section-head">
-            <h2 id="sec-term">المادة والفصل الدراسي</h2>
+            <h2 id="sec-term">المادة والعام الدراسي</h2>
           </div>
           <div class="form-grid form-grid-2">
             <TextField name="academicYear" label="العام الدراسي" value={settings.academicYear} hint="مثال: 1448هـ" max={40} />
-            <TextField name="term" label="الفصل الدراسي" value={settings.term} hint="مثال: الفصل الدراسي الأول" max={60} />
             <TextField name="subject" label="اسم المادة" value={settings.subject} required max={80} />
             <TextField name="grade" label="الصف" value={settings.grade} required hint="يظهر بعد كلمة «الصف»، مثال: السادس" max={40} />
             <div class="field">
@@ -91,33 +89,6 @@ export function SchoolContent({ settings, logos, log }: Props) {
               <p class="field-error" data-error-for="enabledClasses" hidden></p>
             </div>
             <TextField name="teacherName" label="اسم المعلم" value={settings.teacherName} max={80} />
-          </div>
-        </section>
-
-        <section class="panel admin-section" aria-labelledby="sec-max">
-          <div class="admin-section-head">
-            <div>
-              <h2 id="sec-max">الدرجات العظمى</h2>
-              <p>تظهر في التقرير بجانب كل درجة («8 من 15»)، ويُلوَّن التقرير حسب نسبة الطالب منها. اترك الخانة فارغة لإخفاء «من» لذلك البند.</p>
-            </div>
-          </div>
-          <div class="max-grid">
-            {SCORE_FIELDS.map((f) => (
-              <div class="field">
-                <label class="label" for={`max_${f.key}`}>
-                  {f.label}
-                </label>
-                <input
-                  id={`max_${f.key}`}
-                  name={`max_${f.key}`}
-                  class="input num"
-                  inputmode="decimal"
-                  value={settings.scoreMax[f.key] !== null ? String(settings.scoreMax[f.key]) : ""}
-                  maxlength={6}
-                />
-                <p class="field-error" data-error-for={`max_${f.key}`} hidden></p>
-              </div>
-            ))}
           </div>
         </section>
 

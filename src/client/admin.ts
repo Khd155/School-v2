@@ -18,7 +18,7 @@ for (const button of $$<HTMLButtonElement>("[data-restore]")) {
   button.addEventListener("click", () => {
     confirmAction({
       title: "استرجاع هذه النسخة؟",
-      body: `ستصبح نسخة ${button.dataset.label} هي المنشورة لأولياء الأمور. تبقى النسخة الحالية محفوظة ويمكن الرجوع إليها.`,
+      body: `ستصبح نسخة ${button.dataset.label} هي المعتمدة لهذه الفترة. تبقى النسخة الحالية محفوظة ويمكن الرجوع إليها.`,
       confirmLabel: "استرجاع ونشر",
       action: async () => {
         const res = await adminPost("/api/admin/versions/restore", { datasetId: Number(button.dataset.restore) });
@@ -335,6 +335,55 @@ if (schoolForm) {
   }
 }
 
+/* ---------------- Working period selector ---------------- */
+
+const periodSwitch = $<HTMLFormElement>("#period-switch");
+periodSwitch && $("#period-select", periodSwitch)?.addEventListener("change", () => periodSwitch?.submit());
+
+/* ---------------- Periods page ---------------- */
+
+for (const periodForm of $$<HTMLFormElement>(".period-form")) {
+  const status = $("[data-form-status]", periodForm)!;
+  const submit = $<HTMLButtonElement>("button[type=submit]", periodForm)!;
+  const setStatus = (tone: "success" | "error" | null, text: string) => {
+    status.className = `form-status${tone ? ` is-${tone}` : ""}`;
+    status.textContent = text;
+  };
+  periodForm.addEventListener("input", () => setStatus(null, "التعديلات لا تُطبّق قبل الحفظ."));
+  periodForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    for (const el of $$("[data-error-for]", periodForm)) {
+      el.hidden = true;
+      el.textContent = "";
+    }
+    for (const el of $$("[aria-invalid]", periodForm)) el.removeAttribute("aria-invalid");
+    setBusy(submit, true, "جارٍ الحفظ…");
+    const form = new FormData();
+    for (const el of $$<HTMLInputElement>("input[name]", periodForm)) {
+      if (el.type === "checkbox" && !el.checked) continue;
+      form.append(el.name, el.value);
+    }
+    const res = await adminPost<{ changed: boolean }>("/api/admin/periods", form);
+    setBusy(submit, false);
+    if (!res.ok) {
+      for (const [key, text] of Object.entries(res.data.errors ?? {})) {
+        const el = $(`[data-error-for="${key}"]`, periodForm);
+        if (el) {
+          el.textContent = text;
+          el.hidden = false;
+        }
+        $(`input[name="${key}"]`, periodForm)?.setAttribute("aria-invalid", "true");
+      }
+      return setStatus("error", errorText(res.status, res.data.message, "تعذّر حفظ التعديلات."));
+    }
+    if (!res.data.changed) return setStatus("success", "لا توجد تعديلات للحفظ.");
+    window.location.assign(`/admin/periods?saved=${periodForm.dataset.period}#period-${periodForm.dataset.period}-title`);
+  });
+}
+if (window.location.pathname === "/admin/periods" && new URLSearchParams(window.location.search).has("saved")) {
+  history.replaceState(null, "", "/admin/periods" + window.location.hash);
+}
+
 /* ---------------- Account ---------------- */
 
 const passwordForm = $<HTMLFormElement>("#password-form");
@@ -444,7 +493,7 @@ if (bulkTable && bulkBar) {
       const res = await fetch("/api/admin/reports.pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-csrf-token": document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? "" },
-        body: JSON.stringify({ emails }),
+        body: JSON.stringify({ emails, period: bulkBar.dataset.period }),
         credentials: "same-origin",
       });
       if (res.status === 401) return window.location.assign("/admin/login");

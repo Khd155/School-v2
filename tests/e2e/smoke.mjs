@@ -20,12 +20,12 @@ function sql(query) {
   return JSON.parse(out.slice(out.indexOf("[")))[0].results;
 }
 
-sql(`DELETE FROM students; DELETE FROM class_stats; UPDATE app_state SET active_dataset_id = NULL, data_updated_at = NULL; DELETE FROM datasets;
+sql(`DELETE FROM students; DELETE FROM class_stats; UPDATE periods SET active_dataset_id = NULL, data_updated_at = NULL, visible = (key = 't1p1'),
+       score_max = '{"homework":15,"participation":15,"performance":10,"classworkTotal":40,"quran":20,"exams":40,"quranExamsTotal":60,"finalTotal":100}'; DELETE FROM datasets;
      DELETE FROM import_drafts; DELETE FROM access_codes; DELETE FROM admin_credentials; DELETE FROM admin_sessions; DELETE FROM rate_limits;
      DELETE FROM settings_log; DELETE FROM logos; DELETE FROM lookup_log;
      UPDATE app_settings SET school_name = 'مدرسة عبدالرحمن بن أبي بكر الابتدائية', education_office = '', academic_year = '', term = '',
-       subject = 'الدراسات الإسلامية', grade = 'السادس', enabled_classes = '[4,5,6]', teacher_name = '', footer_text = '', require_access_code = 1,
-       score_max = '{"homework":15,"participation":15,"performance":10,"classworkTotal":40,"quran":20,"exams":40,"quranExamsTotal":60,"finalTotal":100}';`);
+       subject = 'الدراسات الإسلامية', grade = 'السادس', enabled_classes = '[4,5,6]', teacher_name = '', footer_text = '', require_access_code = 1;`);
 
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH });
 const shot = async (page, name) => {
@@ -85,8 +85,8 @@ try {
   await shot(admin, "admin-import-preview");
   await admin.click("text=اعتماد البيانات");
   await admin.click("dialog >> text=اعتماد ونشر");
-  await admin.getByText("اعتُمدت البيانات الجديدة وأصبحت منشورة لأولياء الأمور.").waitFor();
-  const [state1] = sql("SELECT data_updated_at, active_dataset_id FROM app_state");
+  await admin.getByText("اعتُمدت البيانات الجديدة لهذه الفترة.").waitFor();
+  const [state1] = sql("SELECT data_updated_at, active_dataset_id FROM periods WHERE key = 't1p1'");
   assert.ok(state1.data_updated_at);
   await shot(admin, "admin-data");
   step("valid workbook previews with warnings and commits");
@@ -154,7 +154,7 @@ try {
   const api = (emails) =>
     admin.evaluate(async (emails) => {
       const csrf = document.querySelector('meta[name="csrf-token"]').content;
-      const r = await fetch("/api/admin/reports.pdf", { method: "POST", headers: { "content-type": "application/json", "x-csrf-token": csrf }, body: JSON.stringify({ emails }) });
+      const r = await fetch("/api/admin/reports.pdf", { method: "POST", headers: { "content-type": "application/json", "x-csrf-token": csrf }, body: JSON.stringify({ emails, period: "t1p1" }) });
       return r.status;
     }, emails);
   assert.equal(await api([]), 400, "empty selection rejected");
@@ -183,7 +183,6 @@ try {
   await admin.goto(`${BASE}/admin/school`);
   await admin.fill("#educationOffice", "إدارة تعليم تجريبية");
   await admin.fill("#academicYear", "1448هـ");
-  await admin.fill("#term", "الفصل الدراسي الأول");
   await admin.fill("#teacherName", "معلم تجريبي");
   await admin.fill("#footerText", "نص تذييل تجريبي.");
   const fileInputs = admin.locator("input[type=file]");
@@ -195,7 +194,7 @@ try {
   const svgText = svg.data;
   assert.ok(!/script|onload|javascript:|foreignObject|evil\.example/i.test(svgText), `SVG sanitised: ${svgText}`);
   assert.ok(svgText.includes("<rect"), "SVG keeps safe shapes");
-  const [state2] = sql("SELECT data_updated_at FROM app_state");
+  const [state2] = sql("SELECT data_updated_at FROM periods WHERE key = 't1p1'");
   assert.equal(state2.data_updated_at, state1.data_updated_at, "settings do not touch data_updated_at");
   await admin.getByText(/تعديل: .*إدارة التعليم/).waitFor();
   await shot(admin, "admin-school");
@@ -241,10 +240,10 @@ try {
   // Report content checks for this student (first student of class 4 in the fixture).
   const report = parent.locator(".report");
   const text = await report.innerText();
-  for (const label of ["الواجبات", "المشاركة والتفاعل", "المهام الأدائية", "مجموع أعمال الفصل", "القرآن الكريم", "الاختبارات", "مجموع القرآن والاختبارات", "تسميع سورة القلم", "تسميع الأحاديث — المهام الأدائية", "إدارة تعليم تجريبية", "معلم تجريبي", "نص تذييل تجريبي."]) {
+  for (const label of ["الواجبات", "المشاركة والتفاعل", "المهام الأدائية", "مجموع أعمال الفصل", "القرآن الكريم", "الاختبارات", "مجموع القرآن والاختبارات", "تسميع سورة القلم", "تسميع الأحاديث — المهام الأدائية", "إدارة تعليم تجريبية", "معلم تجريبي", "نص تذييل تجريبي.", "الفصل الدراسي الأول — الفترة الأولى"]) {
     assert.ok(text.includes(label), `report contains ${label}`);
   }
-  const [stats] = sql("SELECT cs.average, cs.highest FROM class_stats cs JOIN app_state st ON st.active_dataset_id = cs.dataset_id WHERE cs.class_no = 4");
+  const [stats] = sql("SELECT cs.average, cs.highest FROM class_stats cs JOIN periods p ON p.active_dataset_id = cs.dataset_id AND p.key = 't1p1' WHERE cs.class_no = 4");
   const avgText = await parent.locator(".summary-stats dd").first().innerText();
   assert.equal(avgText, String(Math.round(Number(stats.average) * 100) / 100));
   assert.equal(await parent.locator(".summary-stats dd").nth(1).innerText(), String(Number(stats.highest)));
@@ -391,13 +390,75 @@ try {
   await admin.getByText("الملف صالح للاعتماد مع تنبيهات").waitFor();
   await admin.click("text=اعتماد البيانات");
   await admin.click("dialog >> text=اعتماد ونشر");
-  await admin.getByText("اعتُمدت البيانات الجديدة وأصبحت منشورة لأولياء الأمور.").waitFor();
+  await admin.getByText("اعتُمدت البيانات الجديدة لهذه الفترة.").waitFor();
   await admin.getByRole("button", { name: "استرجاع" }).first().click();
   await admin.click("dialog >> text=استرجاع ونشر");
-  await admin.getByText("استُرجعت النسخة المختارة وأصبحت منشورة.").waitFor();
-  const [state3] = sql("SELECT active_dataset_id FROM app_state");
+  await admin.getByText("استُرجعت النسخة المختارة لهذه الفترة.").waitFor();
+  const [state3] = sql("SELECT active_dataset_id FROM periods WHERE key = 't1p1'");
   assert.equal(Number(state3.active_dataset_id), Number(state1.active_dataset_id));
   step("second import creates a version; restore switches back");
+
+  /* ---------- Periods ---------- */
+  sql("DELETE FROM rate_limits; UPDATE app_settings SET require_access_code = 0");
+  await admin.goto(`${BASE}/admin`);
+  await admin.selectOption("#period-select", "t1p2");
+  await admin.getByText("لم تُعتمد بيانات لهذه الفترة بعد.").waitFor();
+  assert.ok((await admin.locator(".admin-page-head").innerText()).includes("الفصل الدراسي الأول — الفترة الثانية"), "data page names the period");
+  assert.equal(await admin.locator(".period-switch-status").innerText(), "مخفية عن أولياء الأمور");
+  await admin.setInputFiles("input[type=file]", path.join(fixtures, "valid.xlsx"));
+  await admin.click("text=رفع ومعاينة");
+  await admin.getByText("الملف صالح للاعتماد مع تنبيهات").waitFor();
+  await admin.click("text=اعتماد البيانات");
+  await admin.click("dialog >> text=اعتماد ونشر");
+  await admin.getByText("اعتُمدت البيانات الجديدة لهذه الفترة.").waitFor();
+  const periodRows = sql("SELECT key, active_dataset_id FROM periods ORDER BY sort");
+  assert.equal(Number(periodRows[0].active_dataset_id), Number(state1.active_dataset_id), "t1p1 untouched by a t1p2 import");
+  assert.ok(periodRows[1].active_dataset_id && periodRows[1].active_dataset_id !== periodRows[0].active_dataset_id, "t1p2 has its own dataset");
+  assert.equal(sql("SELECT period FROM datasets WHERE id = " + Number(periodRows[1].active_dataset_id))[0].period, "t1p2");
+  await admin.goto(`${BASE}/admin/students`);
+  assert.ok((await admin.locator("#students-body a").first().getAttribute("href")).includes("period=t1p2"), "report links carry the period");
+  step("period selector switches the dashboard; an import goes only to the chosen period");
+
+  const parent2 = await browser.newPage({ viewport: { width: 375, height: 800 } });
+  await parent2.goto(BASE);
+  await parent2.fill("#email", email);
+  await parent2.click("text=عرض التقرير");
+  await parent2.waitForURL(`${BASE}/report`);
+  assert.equal(await parent2.locator(".period-tabs").count(), 0, "hidden period offers no selector");
+  assert.ok((await parent2.locator(".report-term").innerText()).includes("الفترة الأولى"));
+  await parent2.goto(`${BASE}/report?period=t1p2`);
+  assert.ok((await parent2.locator(".report-term").innerText()).includes("الفترة الأولى"), "a hidden period cannot be requested");
+
+  await admin.goto(`${BASE}/admin/periods`);
+  const t1p2 = admin.locator('form[data-period="t1p2"]');
+  await t1p2.locator("input[name=max_homework]").fill("abc");
+  await t1p2.getByRole("button", { name: "حفظ" }).click();
+  await t1p2.getByText("أدخل رقمًا أكبر من صفر.").waitFor();
+  await t1p2.locator("input[name=max_homework]").fill("20");
+  await t1p2.locator("input[name=visible]").check();
+  await t1p2.getByRole("button", { name: "حفظ" }).click();
+  await admin.getByText("حُفظت إعدادات هذه الفترة.").waitFor();
+  await shot(admin, "admin-periods");
+  const [p2] = sql("SELECT visible, score_max FROM periods WHERE key = 't1p2'");
+  assert.equal(p2.visible, 1);
+  assert.equal(JSON.parse(p2.score_max).homework, 20);
+  assert.equal(JSON.parse(sql("SELECT score_max FROM periods WHERE key = 't1p1'")[0].score_max).homework, 15, "other periods keep their maximums");
+  step("periods page validates, saves visibility and per-period maximums");
+
+  await parent2.goto(`${BASE}/report`);
+  assert.equal(await parent2.locator(".period-tabs a").count(), 2, "two visible periods → selector");
+  assert.ok((await parent2.locator(".report-term").innerText()).includes("الفترة الثانية"), "latest visible period by default");
+  assert.ok((await parent2.locator(".grade-row-3 .grade-cell").first().innerText()).includes("من 20"), "that period's maximums");
+  assert.equal(await parent2.locator("#download-pdf").getAttribute("data-pdf-url"), "/api/report/pdf?period=t1p2");
+  await shot(parent2, "report-periods-mobile");
+  await parent2.click(".period-tabs >> text=الفصل الأول، الفترة الأولى");
+  await parent2.waitForURL(`${BASE}/report?period=t1p1`);
+  assert.ok((await parent2.locator(".report-term").innerText()).includes("الفترة الأولى"));
+  assert.ok((await parent2.locator(".grade-row-3 .grade-cell").first().innerText()).includes("من 15"));
+  assert.equal(await parent2.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, "report no overflow at 375px");
+  step("parent switches between visible periods, each with its own maximums");
+
+  sql("UPDATE app_settings SET require_access_code = 1");
 
   // Responsive admin screenshots.
   await admin.setViewportSize({ width: 375, height: 800 });

@@ -5,8 +5,10 @@ import { formatClassList, formatDateTimeRiyadh, formatNumber, formatScore } from
 import type { ImportIssue, ImportResult } from "../../shared/import/parse";
 import type { ClassStats } from "../../shared/types";
 import type { DatasetVersion } from "../../server/students";
+import type { PeriodInfo } from "../../server/periods";
 
 type Props = {
+  period: PeriodInfo;
   dataUpdatedAt: string | null;
   stats: ClassStats[];
   versions: DatasetVersion[];
@@ -16,16 +18,16 @@ type Props = {
 };
 
 const FLASH: Record<string, string> = {
-  committed: "اعتُمدت البيانات الجديدة وأصبحت منشورة لأولياء الأمور.",
-  restored: "استُرجعت النسخة المختارة وأصبحت منشورة.",
+  committed: "اعتُمدت البيانات الجديدة لهذه الفترة.",
+  restored: "استُرجعت النسخة المختارة لهذه الفترة.",
 };
 
-export function DataContent({ dataUpdatedAt, stats, versions, enabledClasses, keptVersions, flash }: Props) {
+export function DataContent({ period, dataUpdatedAt, stats, versions, enabledClasses, keptVersions, flash }: Props) {
   const active = versions.find((v) => v.active);
   return (
     <>
       <PageHead title="بيانات الطلاب">
-        ارفع ملف «الملخص العام.xlsx»، وراجع المعاينة، ثم اعتمده. لا تتغير البيانات المعروضة لأولياء الأمور إلا بعد الاعتماد.
+        بيانات {period.label}. ارفع ملف «الملخص العام.xlsx»، وراجع المعاينة، ثم اعتمده. لا تتغير البيانات إلا بعد الاعتماد، ولا تتأثر الفترات الأخرى.
       </PageHead>
 
       {flash && FLASH[flash] && (
@@ -37,8 +39,10 @@ export function DataContent({ dataUpdatedAt, stats, versions, enabledClasses, ke
       <section class="panel admin-section" aria-labelledby="live-title">
         <div class="admin-section-head">
           <div>
-            <h2 id="live-title">البيانات المنشورة</h2>
-            <p>ما يراه أولياء الأمور الآن.</p>
+            <h2 id="live-title">البيانات المعتمدة</h2>
+            <p>
+              {period.visible ? "ظاهرة لأولياء الأمور." : "مخفية عن أولياء الأمور حتى تُظهرها من «الفترات»."}
+            </p>
           </div>
         </div>
         {active ? (
@@ -60,7 +64,7 @@ export function DataContent({ dataUpdatedAt, stats, versions, enabledClasses, ke
             <StatsTable stats={stats} />
           </div>
         ) : (
-          <p class="hint">لم تُعتمد بيانات بعد. صفحة الاستعلام تعرض لأولياء الأمور أن النتائج لم تُنشر.</p>
+          <p class="hint">لم تُعتمد بيانات لهذه الفترة بعد.</p>
         )}
       </section>
 
@@ -81,7 +85,7 @@ export function DataContent({ dataUpdatedAt, stats, versions, enabledClasses, ke
               لم يُختر ملف
             </span>
           </label>
-          <button type="button" class="btn btn-primary" id="import-upload" disabled data-current-count={active ? String(active.studentCount) : ""}>
+          <button type="button" class="btn btn-primary" id="import-upload" disabled data-period={period.key} data-current-count={active ? String(active.studentCount) : ""}>
             <span class="spinner" aria-hidden="true" hidden></span>
             <span class="btn-icon">
               <UploadIcon />
@@ -97,7 +101,7 @@ export function DataContent({ dataUpdatedAt, stats, versions, enabledClasses, ke
         <div class="admin-section-head">
           <div>
             <h2 id="versions-title">النسخ السابقة</h2>
-            <p>يُحتفظ بآخر {keptVersions} نسخ معتمدة. الاسترجاع يجعل النسخة المختارة هي المنشورة، ويحدّث «آخر تحديث للبيانات».</p>
+            <p>يُحتفظ بآخر {keptVersions} نسخ معتمدة. الاسترجاع يجعل النسخة المختارة هي المعتمدة لهذه الفترة، ويحدّث «آخر تحديث للبيانات».</p>
           </div>
         </div>
         <div id="versions-message" aria-live="polite"></div>
@@ -126,7 +130,7 @@ export function DataContent({ dataUpdatedAt, stats, versions, enabledClasses, ke
                     <td class="num">{v.warningCount}</td>
                     <td class="nowrap" style="text-align: end">
                       {v.active ? (
-                        <span class="tag tag-current">المنشورة حاليًا</span>
+                        <span class="tag tag-current">المعتمدة حاليًا</span>
                       ) : (
                         <button
                           type="button"
@@ -226,7 +230,7 @@ export function ImportPreview({ result, filename, draftId }: { result: ImportRes
 
       {errors.length > 0 ? (
         <Alert tone="error" title="لا يمكن اعتماد الملف">
-          أصلح الأخطاء أدناه في ملف Excel ثم ارفعه مرة أخرى. البيانات المنشورة لم تتغير.
+          أصلح الأخطاء أدناه في ملف Excel ثم ارفعه مرة أخرى. البيانات المعتمدة لم تتغير.
         </Alert>
       ) : warnings.length > 0 ? (
         <Alert tone="warning" title="الملف صالح للاعتماد مع تنبيهات">

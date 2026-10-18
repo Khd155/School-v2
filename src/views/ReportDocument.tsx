@@ -1,4 +1,5 @@
 import { Masthead } from "./Masthead";
+import { periodLabel } from "../shared/periods";
 import { formatDateTimeRiyadh, formatNumber, formatScore, isRecorded, NOT_RECORDED, scoreBand } from "../shared/format";
 import {
   HADITH_KEYS,
@@ -22,9 +23,9 @@ type Props = {
 export function ReportDocument({ report, school, issuedAt }: Props) {
   const { student, stats, dataUpdatedAt } = report;
   const s = student.scores;
-  const max = school.scoreMax;
+  const max = report.scoreMax;
   const finalBand = scoreBand(s.finalTotal.num, max.finalTotal);
-  const termLine = [school.academicYear && `العام الدراسي ${school.academicYear}`, school.term]
+  const termLine = [school.academicYear && `العام الدراسي ${school.academicYear}`, periodLabel(report.period)]
     .filter(Boolean)
     .join(" · ");
 

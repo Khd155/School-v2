@@ -1,13 +1,14 @@
 import { DownloadIcon } from "../icons";
+import type { PeriodKey } from "../../shared/periods";
 import { BandedScore, BandLegend, BulkBar, SelectAllHeader, SelectCell } from "./Bulk";
 import { PageHead } from "./AdminLayout";
 import { formatNumber } from "../../shared/format";
 import { SCORE_FIELDS, type GradeQuery, type GradeResult } from "../../server/analysis";
 import type { ScoreMax } from "../../shared/types";
 
-type Props = { query: GradeQuery; result: GradeResult; classes: number[]; hasData: boolean; maxBatch: number; scoreMax: ScoreMax };
+type Props = { query: GradeQuery; result: GradeResult; classes: number[]; hasData: boolean; maxBatch: number; scoreMax: ScoreMax; periodKey: PeriodKey };
 
-export function GradesContent({ query, result, classes, hasData, maxBatch, scoreMax }: Props) {
+export function GradesContent({ query, result, classes, hasData, maxBatch, scoreMax, periodKey }: Props) {
   const max = scoreMax[query.field];
   const fieldLabel = SCORE_FIELDS.find((f) => f.key === query.field)!.label;
   const params = new URLSearchParams({
@@ -26,7 +27,7 @@ export function GradesContent({ query, result, classes, hasData, maxBatch, score
 
       {!hasData ? (
         <section class="panel admin-section">
-          <p class="hint">اعتمد بيانات الطلاب أولًا من صفحة «بيانات الطلاب».</p>
+          <p class="hint">لا توجد بيانات معتمدة لهذه الفترة. اعتمدها من صفحة «بيانات الطلاب».</p>
         </section>
       ) : (
         <>
@@ -142,7 +143,7 @@ export function GradesContent({ query, result, classes, hasData, maxBatch, score
                           <BandedScore value={r.value} max={max} text={max ? `${formatNumber(r.value)} من ${formatNumber(max)}` : formatNumber(r.value)} />
                         </td>
                         <td style="text-align: end">
-                          <a class="btn btn-ghost btn-sm" href={`/admin/report?${new URLSearchParams({ email: r.email, back: `/admin/grades?${params.toString()}` })}`}>
+                          <a class="btn btn-ghost btn-sm" href={`/admin/report?${new URLSearchParams({ email: r.email, period: periodKey, back: `/admin/grades?${params.toString()}` })}`}>
                             التقرير
                           </a>
                         </td>
@@ -151,7 +152,7 @@ export function GradesContent({ query, result, classes, hasData, maxBatch, score
                   </tbody>
                 </table>
               </div>
-              <BulkBar max={maxBatch} />
+              <BulkBar max={maxBatch} period={periodKey} />
               </>
             )}
           </section>

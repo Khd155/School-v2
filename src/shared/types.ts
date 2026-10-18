@@ -68,8 +68,6 @@ export type SchoolInfo = {
   footerText: string;
   /** When false, parents look up results with the school e-mail only. */
   requireAccessCode: boolean;
-  /** Maximum grade per item («من كم»); null when not set. */
-  scoreMax: ScoreMax;
   logos: { ministry: string | null; school: string | null };
 };
 
@@ -77,4 +75,7 @@ export type StudentReport = {
   student: Omit<StudentRecord, "row">;
   stats: ClassStats | null;
   dataUpdatedAt: string | null;
+  /** Which semester/period this report belongs to, and that period's maximum grades. */
+  period: import("./periods").PeriodKey;
+  scoreMax: ScoreMax;
 };

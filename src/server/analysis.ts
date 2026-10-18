@@ -1,3 +1,4 @@
+import type { PeriodKey } from "../shared/periods";
 import type { ScoreKey } from "../shared/types";
 
 export const SCORE_FIELDS: { key: ScoreKey; label: string }[] = [
@@ -28,11 +29,11 @@ export type GradeResult = { rows: GradeRow[]; considered: number; notRecorded: n
  * empty or non-numeric cells are counted separately and never treated as zero.
  * `field` comes from SCORE_FIELDS (an allowlist), so the JSON path is safe to inline.
  */
-export async function rankByGrade(db: D1Database, q: GradeQuery): Promise<GradeResult> {
+export async function rankByGrade(db: D1Database, q: GradeQuery, period: PeriodKey): Promise<GradeResult> {
   if (!SCORE_FIELDS.some((f) => f.key === q.field)) throw new Error("unknown field");
   const value = `json_extract(s.scores, '$.${q.field}.num')`;
-  const base = `FROM app_state st JOIN students s ON s.dataset_id = st.active_dataset_id
-                WHERE st.id = 1 AND (?1 IS NULL OR s.class_no = ?1)`;
+  const base = `FROM periods p JOIN students s ON s.dataset_id = p.active_dataset_id
+                WHERE p.key = ?4 AND (?1 IS NULL OR s.class_no = ?1)`;
   const [ranked, counts] = await db.batch([
     db
       .prepare(
@@ -41,8 +42,8 @@ export async function rankByGrade(db: D1Database, q: GradeQuery): Promise<GradeR
          ORDER BY ${value} ${q.order === "asc" ? "ASC" : "DESC"}, s.class_no, s.name
          LIMIT ?3`,
       )
-      .bind(q.classNo, q.below, q.limit ?? -1),
-    db.prepare(`SELECT COUNT(${value}) AS considered, COUNT(*) - COUNT(${value}) AS not_recorded ${base}`).bind(q.classNo),
+      .bind(q.classNo, q.below, q.limit ?? -1, period),
+    db.prepare(`SELECT COUNT(${value}) AS considered, COUNT(*) - COUNT(${value}) AS not_recorded ${base}`).bind(q.classNo, null, null, period),
   ]);
   const c = counts.results[0] as { considered: number; not_recorded: number };
   return {

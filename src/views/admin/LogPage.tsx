@@ -27,9 +27,10 @@ type Props = {
   keptRows: number;
   coverage: ClassCoverage[];
   daily: DailyActivity[];
+  periodLabel: string;
 };
 
-export function LogContent({ entries, hasMore, filter, summary, totalStudents, keptRows, coverage, daily }: Props) {
+export function LogContent({ entries, hasMore, filter, summary, totalStudents, keptRows, coverage, daily, periodLabel }: Props) {
   const nextParams = new URLSearchParams();
   if (filter.q) nextParams.set("q", filter.q);
   if (filter.outcome) nextParams.set("outcome", filter.outcome);
@@ -81,9 +82,11 @@ export function LogContent({ entries, hasMore, filter, summary, totalStudents, k
         </div>
         <div class="stats-grid">
           <div>
-            <h3 class="issues-head" style="margin-bottom: var(--space-2)">الاطّلاع حسب الفصل</h3>
+            <h3 class="issues-head" style="margin-bottom: var(--space-2)">
+              الاطّلاع حسب الفصل — {periodLabel}
+            </h3>
             {coverage.length === 0 ? (
-              <p class="hint">لا توجد بيانات طلاب منشورة.</p>
+              <p class="hint">لا توجد بيانات معتمدة لهذه الفترة.</p>
             ) : (
               <div class="table-wrap">
                 <table class="table">
