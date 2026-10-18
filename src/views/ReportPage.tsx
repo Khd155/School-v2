@@ -7,6 +7,16 @@ import { periodShortLabel, type PeriodKey } from "../shared/periods";
 /** Parent view (default), or the teacher's view of any student opened from the dashboard. */
 type Mode = { kind: "parent" } | { kind: "teacher"; backHref: string; pdfUrl: string };
 
+/** Teacher toggle for the parent-signature box; report.ts shows/hides it and adds it to the PDF request. */
+function SignatureToggle() {
+  return (
+    <label class="check signature-toggle">
+      <input type="checkbox" id="toggle-signature" checked />
+      <span class="check-label">خانة توقيع ولي الأمر</span>
+    </label>
+  );
+}
+
 type Props = {
   report: StudentReport;
   school: SchoolInfo;
@@ -52,6 +62,7 @@ export function ReportPage({ report, school, issuedAt, mode = { kind: "parent" }
                 <span class="btn-label">تنزيل PDF</span>
               </button>
             </div>
+            {mode.kind === "teacher" && <SignatureToggle />}
             <div id="report-message" class="report-message" aria-live="polite"></div>
           </div>
           {periods.length > 1 && (
@@ -63,7 +74,7 @@ export function ReportPage({ report, school, issuedAt, mode = { kind: "parent" }
               ))}
             </nav>
           )}
-          <ReportDocument report={report} school={school} issuedAt={issuedAt} />
+          <ReportDocument report={report} school={school} issuedAt={issuedAt} signature={mode.kind === "teacher" && { hidden: false }} />
         </div>
       </main>
     </Document>

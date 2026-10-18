@@ -322,3 +322,5 @@
   border-top: 1px solid var(--color-border);
 }
 .period-form-footer .form-status:empty { visibility: hidden; }
+
+.bulk-signature { align-items: center; margin-inline-start: auto; font-size: var(--text-sm); }

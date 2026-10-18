@@ -112,6 +112,16 @@ try {
   await admin.waitForURL(/\/admin\/report\?/);
   assert.ok((await admin.locator(".report-facts").innerText()).includes("محمد تجربة 2"), "teacher sees that student's report");
   assert.ok((await admin.locator(".report-toolbar a").getAttribute("href")).startsWith("/admin/grades?"), "back returns to the same ranking");
+  assert.ok(await admin.locator("[data-signature]").isVisible(), "teacher printout has the parent-signature box");
+  await admin.emulateMedia({ media: "print" });
+  await shot(admin, "teacher-report-print");
+  assert.ok(await admin.locator("[data-signature]").isVisible(), "signature box is printed");
+  await admin.emulateMedia({ media: "screen" });
+  await admin.uncheck("#toggle-signature");
+  assert.equal(await admin.locator("[data-signature]").isVisible(), false, "teacher can switch it off");
+  await admin.reload();
+  assert.equal(await admin.locator("#toggle-signature").isChecked(), false, "choice remembered");
+  await admin.check("#toggle-signature");
   assert.equal(sql("SELECT COUNT(*) AS n FROM lookup_log")[0].n, logBefore, "teacher views are not counted in the search log");
   await admin.goto(`${BASE}/admin/report?email=student401%40test.school.example&back=https://evil.example/`);
   assert.equal(await admin.locator(".report-toolbar a").getAttribute("href"), "/admin/grades", "no external back links");
@@ -248,6 +258,7 @@ try {
   assert.equal(avgText, String(Math.round(Number(stats.average) * 100) / 100));
   assert.equal(await parent.locator(".summary-stats dd").nth(1).innerText(), String(Number(stats.highest)));
   assert.ok(!text.includes("student402"), "no other student data");
+  assert.equal(await parent.locator("[data-signature], #toggle-signature").count(), 0, "no signature box in the parent's report");
 
   // Order of grade cells: first row right-to-left = homework, participation, performance.
   const rowLabels = await parent.locator(".grade-row-3 .grade-label").allInnerTexts();

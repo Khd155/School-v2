@@ -9,6 +9,10 @@ export function BulkBar({ max, period }: { max: number; period: PeriodKey }) {
       <p class="bulk-count" id="bulk-count" aria-live="polite">
         لم يُحدَّد أي طالب
       </p>
+      <label class="check bulk-signature">
+        <input type="checkbox" id="bulk-signature" checked />
+        <span class="check-label">مع خانة توقيع ولي الأمر</span>
+      </label>
       <button type="button" class="btn btn-primary btn-sm" id="bulk-export" disabled>
         <span class="spinner" aria-hidden="true" hidden></span>
         <span class="btn-icon">

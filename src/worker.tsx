@@ -255,10 +255,10 @@ app.get("/api/report/pdf", async (c) => {
 });
 
 /** Renders one student's report as a PDF download (shared by the parent and teacher views). */
-async function pdfResponse(c: Context<AppEnv>, report: StudentReport, school: SchoolInfo) {
+async function pdfResponse(c: Context<AppEnv>, report: StudentReport, school: SchoolInfo, withSignature = false) {
   try {
     const origin = new URL(c.req.url).origin;
-    const markup = String(<ReportDocument report={report} school={school} issuedAt={new Date()} />);
+    const markup = String(<ReportDocument report={report} school={school} issuedAt={new Date()} signature={withSignature && { hidden: false }} />);
     const pdf = await renderReportPdf(c.env, origin, markup, `تقرير ${report.student.name}`);
     const filename = `تقرير التحصيل - ${report.student.name}.pdf`;
     return c.body(pdf, 200, {
@@ -475,7 +475,7 @@ app.get("/admin/report.pdf", async (c) => {
   const period = isPeriodKey(requested) ? requested : (await workingPeriod(c)).period.key;
   const [report, school] = await Promise.all([getStudentReport(c.env.DB, email, period), getSchoolInfo(c.env.DB)]);
   if (!report) return jsonError(c, 404, "no_result");
-  return pdfResponse(c, report, school);
+  return pdfResponse(c, report, school, c.req.query("signature") === "1");
 });
 
 /** Full search log as CSV (UTF-8 with BOM so Excel shows Arabic). Read-only, so no CSRF token needed. */
@@ -704,7 +704,7 @@ admin.post("/school", async (c) => {
 
 /** Selected students' reports as one PDF, one report per page, in the order selected. */
 admin.post("/reports.pdf", async (c) => {
-  const body = await c.req.json<{ emails?: unknown; period?: unknown }>().catch(() => null);
+  const body = await c.req.json<{ emails?: unknown; period?: unknown; signature?: unknown }>().catch(() => null);
   if (!isPeriodKey(body?.period)) return c.json({ error: "invalid_request", message: "حدد الفترة." }, 400);
   const period = body.period;
   const raw = Array.isArray(body?.emails) ? body.emails : [];
@@ -717,7 +717,7 @@ admin.post("/reports.pdf", async (c) => {
   if (reports.length === 0) return c.json({ error: "not_found", message: "لم يُعثر على الطلاب المحددين في بيانات هذه الفترة." }, 404);
 
   const issuedAt = new Date();
-  const markup = reports.map((r) => `<div class="report-batch-item">${String(<ReportDocument report={r} school={school} issuedAt={issuedAt} />)}</div>`).join("");
+  const markup = reports.map((r) => `<div class="report-batch-item">${String(<ReportDocument report={r} school={school} issuedAt={issuedAt} signature={body.signature === true && { hidden: false }} />)}</div>`).join("");
   try {
     const pdf = await renderReportPdf(c.env, new URL(c.req.url).origin, markup, `تقارير الطلاب (${reports.length})`);
     const filename = reports.length === 1 ? `تقرير التحصيل - ${reports[0].student.name}.pdf` : `تقارير التحصيل - ${reports.length} طالبًا.pdf`;

@@ -14,13 +14,15 @@ type Props = {
   report: StudentReport;
   school: SchoolInfo;
   issuedAt: Date;
+  /** Teacher printouts only: a box for the parent to sign before the student returns the paper. */
+  signature?: { hidden: boolean } | false;
 };
 
 /**
  * The student report. Rendered as-is on screen, by the browser's print
  * dialog, and server-side into the PDF, so all three stay identical.
  */
-export function ReportDocument({ report, school, issuedAt }: Props) {
+export function ReportDocument({ report, school, issuedAt, signature = false }: Props) {
   const { student, stats, dataUpdatedAt } = report;
   const s = student.scores;
   const max = report.scoreMax;
@@ -131,21 +133,46 @@ export function ReportDocument({ report, school, issuedAt }: Props) {
         <p className={`report-note${student.note ? "" : " is-empty"}`}>{student.note || "لا توجد ملاحظات."}</p>
       </section>
 
-      <footer className="report-footer">
-        <dl>
-          <div>
-            <dt>آخر تحديث للبيانات</dt>
-            <dd>{dataUpdatedAt ? formatDateTimeRiyadh(dataUpdatedAt) : NOT_RECORDED}</dd>
-          </div>
-          <div>
-            <dt>تاريخ إصدار التقرير</dt>
-            <dd>{formatDateTimeRiyadh(issuedAt)}</dd>
-          </div>
-        </dl>
-        <p className="report-tz">الأوقات بتوقيت المملكة العربية السعودية.</p>
-        {school.footerText && <p className="report-footer-text">{school.footerText}</p>}
+      <footer className={`report-footer${signature ? " has-signature" : ""}`}>
+        <div className="report-footer-info">
+          <dl>
+            <div>
+              <dt>آخر تحديث للبيانات</dt>
+              <dd>{dataUpdatedAt ? formatDateTimeRiyadh(dataUpdatedAt) : NOT_RECORDED}</dd>
+            </div>
+            <div>
+              <dt>تاريخ إصدار التقرير</dt>
+              <dd>{formatDateTimeRiyadh(issuedAt)}</dd>
+            </div>
+          </dl>
+          <p className="report-tz">الأوقات بتوقيت المملكة العربية السعودية.</p>
+          {school.footerText && <p className="report-footer-text">{school.footerText}</p>}
+        </div>
+        {signature && <ParentSignature hidden={signature.hidden} />}
       </footer>
     </article>
+  );
+}
+
+function ParentSignature({ hidden }: { hidden: boolean }) {
+  return (
+    <section className="report-signature" aria-label="توقيع ولي الأمر" hidden={hidden} data-signature>
+      <p className="signature-title">اطّلاع ولي الأمر</p>
+      <dl>
+        <div>
+          <dt>الاسم</dt>
+          <dd></dd>
+        </div>
+        <div>
+          <dt>التوقيع</dt>
+          <dd></dd>
+        </div>
+        <div>
+          <dt>التاريخ</dt>
+          <dd></dd>
+        </div>
+      </dl>
+    </section>
   );
 }
 

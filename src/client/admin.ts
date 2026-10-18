@@ -451,6 +451,22 @@ if (studentsRoot) {
 
 const bulkTable = $<HTMLTableElement>("table[data-bulk]");
 const bulkBar = $("#bulk-bar");
+// Same remembered choice as the single-report toggle (report.ts).
+const bulkSignature = $<HTMLInputElement>("#bulk-signature");
+if (bulkSignature) {
+  try {
+    if (localStorage.getItem("report-signature") === "0") bulkSignature.checked = false;
+  } catch {
+    /* storage unavailable: keep the default */
+  }
+  bulkSignature.addEventListener("change", () => {
+    try {
+      localStorage.setItem("report-signature", bulkSignature.checked ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  });
+}
 if (bulkTable && bulkBar) {
   const max = Number(bulkBar.dataset.max ?? 100);
   const all = $<HTMLInputElement>("[data-bulk-all]", bulkTable)!;
@@ -493,7 +509,7 @@ if (bulkTable && bulkBar) {
       const res = await fetch("/api/admin/reports.pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-csrf-token": document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? "" },
-        body: JSON.stringify({ emails, period: bulkBar.dataset.period }),
+        body: JSON.stringify({ emails, period: bulkBar.dataset.period, signature: $<HTMLInputElement>("#bulk-signature")?.checked ?? false }),
         credentials: "same-origin",
       });
       if (res.status === 401) return window.location.assign("/admin/login");

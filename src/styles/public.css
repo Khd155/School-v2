@@ -52,6 +52,7 @@
 }
 .report-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .report-toolbar .alert { flex-basis: 100%; }
+.signature-toggle { flex-basis: 100%; align-items: center; font-size: var(--text-sm); }
 .report-page-main { padding-top: var(--space-4); }
 
 /* Period switch for parents: one segmented row, the current period underlined. */
