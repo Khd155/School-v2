@@ -443,7 +443,7 @@ try {
   await parent2.fill("#email", email);
   await parent2.click("text=عرض التقرير");
   await parent2.waitForURL(`${BASE}/report`);
-  assert.equal(await parent2.locator(".period-tabs").count(), 0, "hidden period offers no selector");
+  assert.equal(await parent2.locator(".report-periods").count(), 0, "hidden period offers no selector");
   assert.ok((await parent2.locator(".report-term").innerText()).includes("الفترة الأولى"));
   await parent2.goto(`${BASE}/report?period=t1p2`);
   assert.ok((await parent2.locator(".report-term").innerText()).includes("الفترة الأولى"), "a hidden period cannot be requested");
@@ -465,12 +465,12 @@ try {
   step("periods page validates, saves visibility and per-period maximums");
 
   await parent2.goto(`${BASE}/report`);
-  assert.equal(await parent2.locator(".period-tabs a").count(), 2, "two visible periods → selector");
+  assert.equal(await parent2.locator(".report-periods a").count(), 2, "two visible periods → selector");
   assert.ok((await parent2.locator(".report-term").innerText()).includes("الفترة الثانية"), "latest visible period by default");
   assert.ok((await parent2.locator(".grade-row-3 .grade-cell").first().innerText()).includes("من 20"), "that period's maximums");
   assert.equal(await parent2.locator("#download-pdf").getAttribute("data-pdf-url"), "/api/report/pdf?period=t1p2");
   await shot(parent2, "report-periods-mobile");
-  await parent2.click(".period-tabs >> text=الفصل الأول، الفترة الأولى");
+  await parent2.click(".report-periods >> text=الفصل الأول، الفترة الأولى");
   await parent2.waitForURL(`${BASE}/report?period=t1p1`);
   assert.ok((await parent2.locator(".report-term").innerText()).includes("الفترة الأولى"));
   assert.ok((await parent2.locator(".grade-row-3 .grade-cell").first().innerText()).includes("من 15"));

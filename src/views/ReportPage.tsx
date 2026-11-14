@@ -66,12 +66,17 @@ export function ReportPage({ report, school, issuedAt, mode = { kind: "parent" }
             <div id="report-message" class="report-message" aria-live="polite"></div>
           </div>
           {periods.length > 1 && (
-            <nav class="period-tabs no-print" aria-label="الفترة">
-              {[...periods].reverse().map((k) => (
-                <a href={`/report?period=${k}`} aria-current={k === report.period ? "page" : undefined}>
-                  {periodShortLabel(k)}
-                </a>
-              ))}
+            <nav class="report-periods no-print" aria-labelledby="report-periods-label">
+              <span class="report-periods-label" id="report-periods-label">
+                الفترة
+              </span>
+              <div class="segmented">
+                {[...periods].reverse().map((k) => (
+                  <a href={`/report?period=${k}`} class="segmented-option" aria-current={k === report.period ? "page" : undefined}>
+                    {periodShortLabel(k)}
+                  </a>
+                ))}
+              </div>
             </nav>
           )}
           <ReportDocument report={report} school={school} issuedAt={issuedAt} signature={mode.kind === "teacher" && { hidden: false }} />

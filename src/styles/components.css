@@ -156,3 +156,31 @@
 .check input:focus-visible { outline: 2px solid var(--color-action); outline-offset: 2px; }
 .check > span { display: grid; gap: var(--space-1); }
 .check-label { font-weight: var(--weight-medium); color: var(--color-heading); }
+
+/* ---------- Segmented choice (period selectors) ---------- */
+.segmented {
+  display: inline-flex;
+  padding: 3px;
+  gap: 3px;
+  background: var(--gray-50);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.segmented-option {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 76px;
+  min-height: 36px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.segmented-option:hover { color: var(--color-heading); }
+.segmented-option:focus-visible { outline: 2px solid var(--color-action); outline-offset: 1px; }
+.segmented-option[aria-current] { background: var(--color-surface); color: var(--color-action); box-shadow: 0 0 0 1px var(--color-border); }
+
