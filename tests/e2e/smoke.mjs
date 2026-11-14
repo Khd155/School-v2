@@ -412,10 +412,18 @@ try {
   /* ---------- Periods ---------- */
   sql("DELETE FROM rate_limits; UPDATE app_settings SET require_access_code = 0");
   await admin.goto(`${BASE}/admin`);
-  await admin.selectOption("#period-select", "t1p2");
+  // Semester first, then period; the period choice is kept when switching semester.
+  await admin.locator(".period-switch").getByRole("link", { name: "الثانية", exact: true }).click();
   await admin.getByText("لم تُعتمد بيانات لهذه الفترة بعد.").waitFor();
   assert.ok((await admin.locator(".admin-page-head").innerText()).includes("الفصل الدراسي الأول — الفترة الثانية"), "data page names the period");
-  assert.equal(await admin.locator(".period-switch-status").innerText(), "مخفية عن أولياء الأمور");
+  await admin.locator(".period-switch").getByRole("link", { name: "الثاني", exact: true }).click();
+  await admin.waitForURL(`${BASE}/admin`);
+  assert.ok((await admin.locator(".admin-page-head").innerText()).includes("الفصل الدراسي الثاني — الفترة الثانية"), "semester switch keeps the period");
+  assert.deepEqual(await admin.locator('.segmented-option[aria-current="true"]').allInnerTexts(), ["الثاني", "الثانية"]);
+  await shot(admin, "admin-period-switch");
+  await admin.locator(".period-switch").getByRole("link", { name: "الأول", exact: true }).click();
+  await admin.getByText("لم تُعتمد بيانات لهذه الفترة بعد.").waitFor();
+  assert.ok((await admin.locator(".admin-page-head").innerText()).includes("الفصل الدراسي الأول — الفترة الثانية"));
   await admin.setInputFiles("input[type=file]", path.join(fixtures, "valid.xlsx"));
   await admin.click("text=رفع ومعاينة");
   await admin.getByText("الملف صالح للاعتماد مع تنبيهات").waitFor();

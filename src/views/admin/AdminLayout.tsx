@@ -1,7 +1,7 @@
 import type { Child } from "hono/jsx";
 import { Document } from "../Layout";
 import { LogoutIcon } from "../icons";
-import { periodShortLabel, type PeriodKey } from "../../shared/periods";
+import type { PeriodKey } from "../../shared/periods";
 import type { PeriodInfo } from "../../server/periods";
 
 const LINKS = [
@@ -63,7 +63,7 @@ export function AdminLayout({ title, path, currentUrl, csrfToken, schoolName, su
         </div>
       </nav>
       <main class="admin-main" id="main">
-        {PERIOD_PAGES.has(path) && <PeriodSwitch periods={periods} period={period} back={currentUrl} />}
+        {PERIOD_PAGES.has(path) && <PeriodSwitch period={period} back={currentUrl} />}
         {children}
       </main>
       <ConfirmDialogShell />
@@ -71,34 +71,39 @@ export function AdminLayout({ title, path, currentUrl, csrfToken, schoolName, su
   );
 }
 
-/** GET form, so it also works without JavaScript; admin.ts submits it on change. */
-function PeriodSwitch({ periods, period, back }: { periods: PeriodInfo[]; period: PeriodKey; back: string }) {
-  const current = periods.find((p) => p.key === period);
+/**
+ * Two segmented choices: semester, then period. Each option is a plain link to
+ * /admin/period, which remembers the choice and returns to the same page.
+ */
+function PeriodSwitch({ period, back }: { period: PeriodKey; back: string }) {
+  const [, term, part] = period.match(/^t(\d)p(\d)$/)!;
+  const href = (key: string) => `/admin/period?${new URLSearchParams({ key, back })}`;
+  const Option = ({ to, current, label }: { to: string; current: boolean; label: string }) => (
+    <a href={href(to)} class="segmented-option" aria-current={current ? "true" : undefined}>
+      {label}
+    </a>
+  );
   return (
-    <form class="period-switch" method="get" action="/admin/period" id="period-switch">
-      <label class="period-switch-label" for="period-select">
-        الفترة
-      </label>
-      <select class="select" id="period-select" name="key">
-        {periods.map((p) => (
-          <option value={p.key} selected={p.key === period}>
-            {periodShortLabel(p.key)}
-            {p.activeDatasetId === null ? " (بلا بيانات)" : ""}
-          </option>
-        ))}
-      </select>
-      <input type="hidden" name="back" value={back} />
-      <noscript>
-        <button type="submit" class="btn btn-secondary btn-sm">
-          عرض
-        </button>
-      </noscript>
-      {current && (
-        <span class={`period-switch-status${current.visible ? " is-visible" : ""}`}>
-          {current.visible ? "ظاهرة لأولياء الأمور" : "مخفية عن أولياء الأمور"}
+    <div class="period-switch">
+      <div class="period-switch-group" role="group" aria-labelledby="term-label">
+        <span class="period-switch-label" id="term-label">
+          الفصل الدراسي
         </span>
-      )}
-    </form>
+        <div class="segmented">
+          <Option to={`t1p${part}`} current={term === "1"} label="الأول" />
+          <Option to={`t2p${part}`} current={term === "2"} label="الثاني" />
+        </div>
+      </div>
+      <div class="period-switch-group" role="group" aria-labelledby="part-label">
+        <span class="period-switch-label" id="part-label">
+          الفترة
+        </span>
+        <div class="segmented">
+          <Option to={`t${term}p1`} current={part === "1"} label="الأولى" />
+          <Option to={`t${term}p2`} current={part === "2"} label="الثانية" />
+        </div>
+      </div>
+    </div>
   );
 }
 

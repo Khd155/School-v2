@@ -335,11 +335,6 @@ if (schoolForm) {
   }
 }
 
-/* ---------------- Working period selector ---------------- */
-
-const periodSwitch = $<HTMLFormElement>("#period-switch");
-periodSwitch && $("#period-select", periodSwitch)?.addEventListener("change", () => periodSwitch?.submit());
-
 /* ---------------- Periods page ---------------- */
 
 for (const periodForm of $$<HTMLFormElement>(".period-form")) {

@@ -291,22 +291,47 @@
 .max-grid .field + .field { margin-top: 0; }
 @media (min-width: 900px) { .max-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 
-/* ---------- Working period selector ---------- */
+/* ---------- Working period selector: semester, then period ---------- */
 .period-switch {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2) var(--space-3);
+  gap: var(--space-3) var(--space-6);
   margin-bottom: var(--space-6);
   padding-bottom: var(--space-4);
   border-bottom: 1px solid var(--color-border);
 }
-.period-switch-label { font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--color-heading); }
-.period-switch .select { width: auto; min-width: 220px; flex: 0 1 auto; }
-.period-switch-status { font-size: var(--text-sm); color: var(--color-text-muted); }
-.period-switch-status.is-visible { color: var(--success-text); }
+.period-switch-group { display: flex; align-items: center; gap: var(--space-3); }
+.period-switch-label { font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--color-heading); white-space: nowrap; }
+
+.segmented {
+  display: inline-flex;
+  padding: 3px;
+  gap: 3px;
+  background: var(--gray-50);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.segmented-option {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 76px;
+  min-height: 36px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.segmented-option:hover { color: var(--color-heading); }
+.segmented-option:focus-visible { outline: 2px solid var(--color-action); outline-offset: 1px; }
+.segmented-option[aria-current="true"] { background: var(--color-surface); color: var(--color-action); box-shadow: 0 0 0 1px var(--color-border); }
+
 @media (max-width: 480px) {
-  .period-switch .select { flex: 1 1 100%; min-width: 0; }
+  .period-switch-group { flex: 1 1 100%; justify-content: space-between; }
 }
 
 /* ---------- Periods page ---------- */
