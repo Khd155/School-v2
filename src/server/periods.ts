@@ -1,6 +1,6 @@
 import { nowIso } from "./env";
 import { isPeriodKey, periodLabel, PERIODS, type PeriodKey } from "../shared/periods";
-import { SCORE_KEYS, type ScoreMax } from "../shared/types";
+import { SCORE_KEYS, type RecitationMax, type ScoreMax } from "../shared/types";
 
 export type PeriodInfo = {
   key: PeriodKey;
@@ -10,6 +10,7 @@ export type PeriodInfo = {
   dataUpdatedAt: string | null;
   studentCount: number | null;
   scoreMax: ScoreMax;
+  recitationMax: RecitationMax;
 };
 
 type PeriodRow = {
@@ -21,19 +22,30 @@ type PeriodRow = {
   student_count: number | null;
 };
 
-export function parseScoreMax(raw: string | null): ScoreMax {
-  let obj: Record<string, unknown> = {};
+function readMaxJson(raw: string | null): Record<string, unknown> {
   try {
-    obj = JSON.parse(raw ?? "{}") ?? {};
+    return JSON.parse(raw ?? "{}") ?? {};
   } catch {
-    /* all null */
+    return {};
   }
+}
+const positive = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v > 0 ? v : null);
+
+export function parseScoreMax(raw: string | null): ScoreMax {
+  const obj = readMaxJson(raw);
   const out = {} as ScoreMax;
-  for (const key of SCORE_KEYS) {
-    const v = obj[key];
-    out[key] = typeof v === "number" && Number.isFinite(v) && v > 0 ? v : null;
-  }
+  for (const key of SCORE_KEYS) out[key] = positive(obj[key]);
   return out;
+}
+
+/** Recitation maximums share the period's score_max JSON, under their own keys. */
+export function parseRecitationMax(raw: string | null): RecitationMax {
+  const obj = readMaxJson(raw);
+  return { segment: positive(obj.recitationSegment), hadith: positive(obj.recitationHadith) };
+}
+
+function maxJson(scoreMax: ScoreMax, recitationMax: RecitationMax): string {
+  return JSON.stringify({ ...scoreMax, recitationSegment: recitationMax.segment, recitationHadith: recitationMax.hadith });
 }
 
 const fromRow = (r: PeriodRow): PeriodInfo => ({
@@ -44,6 +56,7 @@ const fromRow = (r: PeriodRow): PeriodInfo => ({
   dataUpdatedAt: r.data_updated_at,
   studentCount: r.student_count,
   scoreMax: parseScoreMax(r.score_max),
+  recitationMax: parseRecitationMax(r.score_max),
 });
 
 /** All four periods in chronological order. */
@@ -74,14 +87,15 @@ export function resolveWorkingPeriod(periods: PeriodInfo[], requested: string | 
 }
 
 /** Saves one period's visibility and maximum grades, with a change-log entry. */
-export async function updatePeriod(db: D1Database, key: PeriodKey, visible: boolean, scoreMax: ScoreMax): Promise<boolean> {
+export async function updatePeriod(db: D1Database, key: PeriodKey, visible: boolean, scoreMax: ScoreMax, recitationMax: RecitationMax): Promise<boolean> {
   const current = await getPeriod(db, key);
   const parts: string[] = [];
   if (current.visible !== visible) parts.push(visible ? "إظهار لأولياء الأمور" : "إخفاء عن أولياء الأمور");
   if (JSON.stringify(current.scoreMax) !== JSON.stringify(scoreMax)) parts.push("الدرجات العظمى");
+  if (JSON.stringify(current.recitationMax) !== JSON.stringify(recitationMax)) parts.push("الدرجة العظمى للتسميع");
   if (parts.length === 0) return false;
   await db.batch([
-    db.prepare("UPDATE periods SET visible = ?, score_max = ? WHERE key = ?").bind(visible ? 1 : 0, JSON.stringify(scoreMax), key),
+    db.prepare("UPDATE periods SET visible = ?, score_max = ? WHERE key = ?").bind(visible ? 1 : 0, maxJson(scoreMax, recitationMax), key),
     db.prepare("INSERT INTO settings_log (changed_at, summary) VALUES (?, ?)").bind(nowIso(), `${periodLabel(key)}: ${parts.join("، ")}`),
   ]);
   return true;

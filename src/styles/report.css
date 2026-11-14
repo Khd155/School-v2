@@ -156,6 +156,8 @@
 .recitation.is-done { background: var(--success-bg); border-color: var(--success-border); color: var(--success-text); }
 .recitation.is-not-done { background: var(--danger-bg); border-color: var(--danger-border); color: var(--danger-text); }
 .recitation.is-empty { background: var(--neutral-bg); border-color: var(--neutral-border); color: var(--neutral-text); }
+.recitation.is-partial { background: var(--warning-bg); border-color: var(--warning-border); color: var(--warning-text); }
+.recitation.is-score { background: var(--neutral-bg); border-color: var(--neutral-border); color: var(--color-heading); }
 .recitation.is-empty .recitation-status { font-weight: var(--weight-medium); font-size: var(--text-sm); }
 
 .recitation-score { margin-top: var(--space-3); font-size: var(--text-sm); color: var(--color-text-muted); }

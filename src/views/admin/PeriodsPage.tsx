@@ -50,22 +50,14 @@ function PeriodForm({ period: p, saved }: { period: PeriodInfo; saved: boolean }
 
       <h3 class="issues-head period-max-head">الدرجات العظمى</h3>
       <p class="hint" style="margin-bottom: var(--space-3)">
-        تظهر في التقرير بجانب كل درجة («8 من 15») ويُلوَّن حسبها. اترك الخانة فارغة لإخفاء «من» لذلك البند.
+        تظهر في التقرير بجانب كل درجة («8 من 15») ويُلوَّن حسبها. التسميع يُستخدم إذا سُجّل في الملف بالدرجات بدل «تم / لم يتم». اترك الخانة فارغة لإخفاء «من» لذلك البند.
       </p>
       <div class="max-grid">
-        {SCORE_FIELDS.map((f) => {
-          const inputId = `${id}-max_${f.key}`;
-          const value = p.scoreMax[f.key];
-          return (
-            <div class="field">
-              <label class="label" for={inputId}>
-                {f.label}
-              </label>
-              <input id={inputId} name={`max_${f.key}`} class="input num" inputmode="decimal" value={value !== null ? String(value) : ""} maxlength={6} />
-              <p class="field-error" data-error-for={`max_${f.key}`} hidden></p>
-            </div>
-          );
-        })}
+        {SCORE_FIELDS.map((f) => (
+          <MaxField id={id} name={`max_${f.key}`} label={f.label} value={p.scoreMax[f.key]} />
+        ))}
+        <MaxField id={id} name="max_recitationSegment" label="مقطع تسميع السورة" value={p.recitationMax.segment} />
+        <MaxField id={id} name="max_recitationHadith" label="الحديث الواحد" value={p.recitationMax.hadith} />
       </div>
 
       <div class="period-form-footer">
@@ -78,5 +70,18 @@ function PeriodForm({ period: p, saved }: { period: PeriodInfo; saved: boolean }
         </button>
       </div>
     </form>
+  );
+}
+
+function MaxField({ id, name, label, value }: { id: string; name: string; label: string; value: number | null }) {
+  const inputId = `${id}-${name}`;
+  return (
+    <div class="field">
+      <label class="label" for={inputId}>
+        {label}
+      </label>
+      <input id={inputId} name={name} class="input num" inputmode="decimal" value={value !== null ? String(value) : ""} maxlength={6} />
+      <p class="field-error" data-error-for={name} hidden></p>
+    </div>
   );
 }

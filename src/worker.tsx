@@ -738,17 +738,21 @@ admin.post("/periods", async (c) => {
   const key = form?.get("key");
   if (!form || !isPeriodKey(key)) return c.json({ error: "invalid_request" }, 400);
   const errors: Record<string, string> = {};
-  const scoreMax = parseScoreMax("{}");
-  for (const field of SCORE_KEYS) {
-    const raw = form.get(`max_${field}`);
+  /** Empty = not set (null); otherwise a positive number up to 1000. */
+  const readMax = (name: string): number | null => {
+    const raw = form.get(name);
     const text = (typeof raw === "string" ? raw : "").trim().replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d))).replace("٫", ".");
-    if (!text) continue; // empty = not set
+    if (!text) return null;
     const n = Number(text);
-    if (!Number.isFinite(n) || n <= 0 || n > 1000) errors[`max_${field}`] = "أدخل رقمًا أكبر من صفر.";
-    else scoreMax[field] = n;
-  }
+    if (Number.isFinite(n) && n > 0 && n <= 1000) return n;
+    errors[name] = "أدخل رقمًا أكبر من صفر.";
+    return null;
+  };
+  const scoreMax = parseScoreMax("{}");
+  for (const field of SCORE_KEYS) scoreMax[field] = readMax(`max_${field}`);
+  const recitationMax = { segment: readMax("max_recitationSegment"), hadith: readMax("max_recitationHadith") };
   if (Object.keys(errors).length) return c.json({ error: "validation", errors, message: "تحقق من الحقول المشار إليها." }, 400);
-  const changed = await updatePeriod(c.env.DB, key, form.get("visible") === "1", scoreMax);
+  const changed = await updatePeriod(c.env.DB, key, form.get("visible") === "1", scoreMax, recitationMax);
   return c.json({ changed });
 });
 

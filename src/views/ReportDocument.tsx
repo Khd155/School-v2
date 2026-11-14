@@ -1,14 +1,8 @@
 import { Masthead } from "./Masthead";
 import { periodLabel } from "../shared/periods";
 import { formatDateTimeRiyadh, formatNumber, formatScore, isRecorded, NOT_RECORDED, scoreBand } from "../shared/format";
-import {
-  HADITH_KEYS,
-  QURAN_SEGMENTS,
-  type Recitation,
-  type SchoolInfo,
-  type ScoreValue,
-  type StudentReport,
-} from "../shared/types";
+import { hadithLabel } from "../shared/recitations";
+import type { Recitation, SchoolInfo, ScoreValue, StudentReport } from "../shared/types";
 
 type Props = {
   report: StudentReport;
@@ -103,26 +97,31 @@ export function ReportDocument({ report, school, issuedAt, signature = false }: 
         </div>
       </section>
 
-      <section className="report-section" aria-labelledby="quran-title">
-        <h2 id="quran-title" className="section-title">تسميع سورة القلم</h2>
-        <ul className="recitations recitations-4">
-          {QURAN_SEGMENTS.map((seg) => (
-            <RecitationCell
-              key={seg.key}
-              label={`الآيات من ${seg.from} إلى ${seg.to}`}
-              value={student.quran[seg.key]}
-            />
-          ))}
-        </ul>
-      </section>
+      {student.quran.length > 0 && (
+        <section className="report-section" aria-labelledby="quran-title">
+          <h2 id="quran-title" className="section-title">تسميع سورة القلم</h2>
+          <ul className={`recitations ${student.quran.length >= 4 ? "recitations-4" : "recitations-2"}`}>
+            {student.quran.map((seg) => (
+              <RecitationCell
+                key={`${seg.from}-${seg.to}`}
+                label={`الآيات من ${seg.from} إلى ${seg.to}`}
+                value={seg}
+                max={report.recitationMax.segment}
+              />
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="report-section" aria-labelledby="hadith-title">
         <h2 id="hadith-title" className="section-title">تسميع الأحاديث — المهام الأدائية</h2>
-        <ul className="recitations recitations-2">
-          {HADITH_KEYS.map((key, i) => (
-            <RecitationCell key={key} label={i === 0 ? "الحديث الأول" : "الحديث الثاني"} value={student.hadith[key]} />
-          ))}
-        </ul>
+        {student.hadith.length > 0 && (
+          <ul className="recitations recitations-2">
+            {student.hadith.map((h) => (
+              <RecitationCell key={h.n} label={hadithLabel(h.n)} value={h} max={report.recitationMax.hadith} />
+            ))}
+          </ul>
+        )}
         <p className="recitation-score">
           درجة المهام الأدائية المسجلة: <strong className="num">{formatScore(s.performance)}</strong>
         </p>
@@ -191,30 +190,55 @@ function GradeCell({ label, value, max, total }: { label: string; value: ScoreVa
   );
 }
 
-const STATUS_TEXT: Record<Recitation["status"], string> = {
+const STATUS_TEXT: Record<Exclude<Recitation["status"], "scored">, string> = {
   done: "تم",
   not_done: "لم يتم",
   empty: NOT_RECORDED,
   unknown: NOT_RECORDED,
 };
 
-function RecitationCell({ label, value }: { label: string; value: Recitation }) {
+type Tone = "done" | "partial" | "not-done" | "empty" | "score";
+
+/**
+ * Text statuses map directly. Scores: 0 is «لم يتم», the full mark is done,
+ * anything between is partial; without a maximum the score is shown neutrally.
+ */
+function recitationView(value: Recitation, max: number | null): { tone: Tone; text: string; max: number | null } {
+  if (value.status === "scored") {
+    if (value.score === 0) return { tone: "not-done", text: STATUS_TEXT.not_done, max: null };
+    if (!max) return { tone: "score", text: formatNumber(value.score), max: null };
+    return { tone: value.score >= max ? "done" : "partial", text: formatNumber(value.score), max };
+  }
   const text = value.status === "unknown" && value.raw ? value.raw : STATUS_TEXT[value.status];
   const tone = value.status === "done" ? "done" : value.status === "not_done" ? "not-done" : "empty";
+  return { tone, text, max: null };
+}
+
+function RecitationCell({ label, value, max }: { label: string; value: Recitation; max: number | null }) {
+  const view = recitationView(value, max);
   return (
-    <li className={`recitation is-${tone}`}>
+    <li className={`recitation is-${view.tone}`}>
       <span className="recitation-label">{label}</span>
       <span className="recitation-status">
-        <StatusMark tone={tone} />
-        {text}
+        <StatusMark tone={view.tone} />
+        <span className={view.tone === "score" || view.max ? "num" : undefined}>{view.text}</span>
+        {view.max && <span className="grade-max"> من {formatNumber(view.max)}</span>}
       </span>
     </li>
   );
 }
 
 /** Shape cue alongside colour so status never depends on colour alone. */
-function StatusMark({ tone }: { tone: "done" | "not-done" | "empty" }) {
+function StatusMark({ tone }: { tone: Tone }) {
   const common = { width: 16, height: 16, viewBox: "0 0 16 16", "aria-hidden": true, fill: "none" } as const;
+  if (tone === "score") return null;
+  if (tone === "partial")
+    return (
+      <svg {...common}>
+        <circle cx="8" cy="8" r="5.25" stroke="currentColor" strokeWidth="1.6" />
+        <path d="M8 2.75a5.25 5.25 0 0 1 0 10.5z" fill="currentColor" />
+      </svg>
+    );
   if (tone === "done")
     return (
       <svg {...common}>

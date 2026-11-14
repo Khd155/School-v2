@@ -20,20 +20,19 @@ export type Scores = Record<ScoreKey, ScoreValue>;
 export type ScoreMax = Record<ScoreKey, number | null>;
 
 export type RecitationStatus = "done" | "not_done" | "empty" | "unknown";
-export type Recitation = { status: RecitationStatus; raw?: string };
+/**
+ * One recitation cell. Text files use «تم / لم يتم»; later periods record a
+ * numeric score per segment instead ({ status: "scored" }).
+ */
+export type Recitation = { status: RecitationStatus; raw?: string } | { status: "scored"; score: number };
 
-export const QURAN_SEGMENTS = [
-  { key: "s1", from: 1, to: 6 },
-  { key: "s2", from: 7, to: 16 },
-  { key: "s3", from: 17, to: 24 },
-  { key: "s4", from: 25, to: 33 },
-] as const;
-export type QuranSegmentKey = (typeof QURAN_SEGMENTS)[number]["key"];
-export type QuranRecitation = Record<QuranSegmentKey, Recitation>;
+/** A Surat Al-Qalam segment (verse range) as found in the file's headers. */
+export type QuranSegment = Recitation & { from: number; to: number };
+/** A hadith column («حديث 3» → n = 3). */
+export type HadithItem = Recitation & { n: number };
 
-export const HADITH_KEYS = ["h1", "h2"] as const;
-export type HadithKey = (typeof HADITH_KEYS)[number];
-export type HadithRecitation = Record<HadithKey, Recitation>;
+/** Maximum per recitation item, per period (null = show the score without «من»). */
+export type RecitationMax = { segment: number | null; hadith: number | null };
 
 export type StudentRecord = {
   /** 1-based row number in the source sheet, for error reporting. */
@@ -42,8 +41,8 @@ export type StudentRecord = {
   email: string;
   classNo: number;
   scores: Scores;
-  quran: QuranRecitation;
-  hadith: HadithRecitation;
+  quran: QuranSegment[];
+  hadith: HadithItem[];
   note: string | null;
 };
 
@@ -78,4 +77,5 @@ export type StudentReport = {
   /** Which semester/period this report belongs to, and that period's maximum grades. */
   period: import("./periods").PeriodKey;
   scoreMax: ScoreMax;
+  recitationMax: RecitationMax;
 };

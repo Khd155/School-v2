@@ -6,6 +6,7 @@ import { computeClassStats, normalizeHeader, parseGrid, parseRecitation, parseSc
 import { extractGrid, readCell, validateGrid } from "@/shared/import/grid";
 import { formatNumber, formatScore, scoreBand } from "@/shared/format";
 import { normalizeAccessCode } from "@/shared/access-code-format";
+import { hadithLabel, normalizeHadith, normalizeQuran } from "@/shared/recitations";
 
 const fixture = (name: string) => readFileSync(path.join(__dirname, "..", "fixtures", name));
 
@@ -48,10 +49,10 @@ describe("parseWorkbook — valid file", async () => {
 
   it("maps recitation columns, including a header Excel turned into a date", () => {
     const s = result.students[0];
-    expect(s.quran.s1.status).toBe("done");
-    expect(s.quran.s2.status).toBe("not_done");
-    expect(s.quran.s3.status).toBe("empty");
-    expect(s.hadith.h2.status).toBe("not_done");
+    expect(s.quran.map((q) => [q.from, q.to])).toEqual([[1, 6], [7, 16], [17, 24], [25, 33]]);
+    expect(s.quran.map((q) => q.status)).toEqual(["done", "not_done", "empty", expect.any(String)]);
+    expect(s.hadith.map((h) => h.n)).toEqual([1, 2]);
+    expect(s.hadith[1].status).toBe("not_done");
   });
 
   it("warns about totals that do not match their parts without changing them", () => {
@@ -121,8 +122,12 @@ describe("cell helpers", () => {
     const cell = (v: string | number) => (v === "" ? { kind: "empty" as const } : typeof v === "number" ? { kind: "number" as const, value: v } : { kind: "text" as const, value: v });
     const r = parseGrid([{ name: "ورقة1", rows: [header.map(cell), row.map(cell)] }], [4]);
     expect(r.issues.filter((i) => i.level === "error")).toEqual([]);
-    expect(r.students[0].quran).toEqual({ s1: { status: "done" }, s2: { status: "not_done" }, s3: { status: "empty" }, s4: { status: "unknown", raw: "4" } });
-    expect(r.issues.some((i) => i.message.includes("«الآيات 25–33»: «4»"))).toBe(true);
+    expect(r.students[0].quran).toEqual([
+      { status: "done", from: 1, to: 6 },
+      { status: "not_done", from: 7, to: 16 },
+      { status: "empty", from: 17, to: 24 },
+      { status: "scored", score: 4, from: 25, to: 33 },
+    ]);
   });
 
   it("parses Arabic-Indic numerals and keeps other text", () => {
@@ -137,6 +142,9 @@ describe("cell helpers", () => {
     expect(parseRecitation(readCell(" لم  يتم "))).toEqual({ status: "not_done" });
     expect(parseRecitation(readCell(null))).toEqual({ status: "empty" });
     expect(parseRecitation(readCell("✓"))).toEqual({ status: "unknown", raw: "✓" });
+    expect(parseRecitation(readCell(7))).toEqual({ status: "scored", score: 7 });
+    expect(parseRecitation(readCell("٥"))).toEqual({ status: "scored", score: 5 });
+    expect(parseRecitation(readCell(0))).toEqual({ status: "scored", score: 0 });
   });
 
   it("formats numbers with at most two decimals", () => {
@@ -185,3 +193,39 @@ describe("maximum grades", async () => {
   });
 });
 
+
+describe("recitation columns differ per period", () => {
+  const cell = (v: string | number) => (v === "" ? { kind: "empty" as const } : typeof v === "number" ? { kind: "number" as const, value: v } : { kind: "text" as const, value: v });
+  // Period 2 layout: verses 1–52 in seven segments and hadiths 3–4, all as scores; no «ملاحظة» column.
+  const header = ["م", "الطالب", "Email", "class", "الواجبات", "المشاركة و التفاعل", "المهام الآدائية", "المجموع", "القرآن الكريم", "الاختبار التحريري", "المجموع2", "المجموع النهائي", "من 1 - 6", "من 7 - 16", "من 17 - 24", "من 25 -33", "من 34 - 40", "من 41 - 47", "من 48 - 52", "حديث 3", "حديث 4"];
+  const row = [1, "طالب", "b@test.school.example", 5, 8, 9, 10, 27, 14.33, 28, 42.33, 69.33, 7, 7, 6, 7, 7, 0, 0, 5, 5];
+  const r = parseGrid([{ name: "ورقة1", rows: [header.map(cell), row.map(cell)] }], [5]);
+
+  it("finds every segment and hadith in the file, in order", () => {
+    expect(r.issues.filter((i) => i.level === "error")).toEqual([]);
+    const s = r.students[0];
+    expect(s.quran.map((q) => `${q.from}-${q.to}`)).toEqual(["1-6", "7-16", "17-24", "25-33", "34-40", "41-47", "48-52"]);
+    expect(s.quran.map((q) => (q.status === "scored" ? q.score : q.status))).toEqual([7, 7, 6, 7, 7, 0, 0]);
+    expect(s.hadith).toEqual([{ status: "scored", score: 5, n: 3 }, { status: "scored", score: 5, n: 4 }]);
+    expect(r.issues.filter((i) => i.message.includes("حالة تسميع"))).toEqual([]);
+  });
+
+  it("warns instead of failing when a file has no recitation columns", () => {
+    const plain = parseGrid([{ name: "x", rows: [header.slice(0, 12).map(cell), row.slice(0, 12).map(cell)] }], [5]);
+    expect(plain.students).toHaveLength(1);
+    expect(plain.issues.filter((i) => i.level === "error")).toEqual([]);
+    expect(plain.issues.filter((i) => i.level === "warning").map((i) => i.message).join(" ")).toMatch(/سورة القلم.*الأحاديث/);
+  });
+
+  it("reads rows stored before recitation columns became dynamic", () => {
+    expect(normalizeQuran({ s1: { status: "done" }, s2: { status: "not_done" }, s3: { status: "empty" }, s4: { status: "unknown", raw: "4" } })).toEqual([
+      { status: "done", from: 1, to: 6 },
+      { status: "not_done", from: 7, to: 16 },
+      { status: "empty", from: 17, to: 24 },
+      { status: "unknown", raw: "4", from: 25, to: 33 },
+    ]);
+    expect(normalizeHadith({ h1: { status: "done" }, h2: { status: "not_done" } })).toEqual([{ status: "done", n: 1 }, { status: "not_done", n: 2 }]);
+    expect(normalizeHadith([{ status: "scored", score: 5, n: 3 }])).toEqual([{ status: "scored", score: 5, n: 3 }]);
+    expect(hadithLabel(3)).toBe("الحديث الثالث");
+  });
+});

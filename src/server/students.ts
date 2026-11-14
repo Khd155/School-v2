@@ -1,7 +1,8 @@
 import { isoIn, nowIso } from "./env";
-import { parseScoreMax } from "./periods";
+import { parseRecitationMax, parseScoreMax } from "./periods";
 import type { ImportResult } from "../shared/import/parse";
 import type { PeriodKey } from "../shared/periods";
+import { normalizeHadith, normalizeQuran } from "../shared/recitations";
 import type { ClassStats, StudentReport } from "../shared/types";
 
 /** Number of approved versions kept per period for restore. Older ones are pruned on commit. */
@@ -42,14 +43,15 @@ function reportFromRow(row: ReportRow): StudentReport {
       email: row.email,
       classNo: row.class_no,
       scores: JSON.parse(row.scores),
-      quran: JSON.parse(row.quran),
-      hadith: JSON.parse(row.hadith),
+      quran: normalizeQuran(JSON.parse(row.quran)),
+      hadith: normalizeHadith(JSON.parse(row.hadith)),
       note: row.note,
     },
     stats: row.counted === null ? null : statsFromRow(row),
     dataUpdatedAt: row.data_updated_at,
     period: row.period,
     scoreMax: parseScoreMax(row.score_max),
+    recitationMax: parseRecitationMax(row.score_max),
   };
 }
 
